@@ -1,0 +1,299 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="20dp">
+
+        <!-- Заголовок -->
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="📶 Подключение клиентов"
+            android:textSize="17sp"
+            android:textStyle="bold"
+            android:textColor="#212121"
+            android:layout_marginBottom="4dp"/>
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Отсканируйте QR или введите настройки вручную"
+            android:textSize="12sp"
+            android:textColor="#757575"
+            android:layout_marginBottom="16dp"/>
+
+        <!-- QR + текстовые данные рядом -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:layout_marginBottom="16dp">
+
+            <!-- QR код -->
+            <ImageView
+                android:id="@+id/ivQrCode"
+                android:layout_width="140dp"
+                android:layout_height="140dp"
+                android:background="#FFFFFF"
+                android:padding="6dp"/>
+
+            <!-- Текстовые данные справа от QR -->
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:orientation="vertical"
+                android:paddingStart="14dp">
+
+                <!-- Тип -->
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="ТИП"
+                    android:textSize="10sp"
+                    android:textColor="#9E9E9E"
+                    android:textAllCaps="true"
+                    android:letterSpacing="0.08"/>
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="SOCKS5"
+                    android:textSize="15sp"
+                    android:textStyle="bold"
+                    android:textColor="#1976D2"
+                    android:layout_marginBottom="10dp"/>
+
+                <!-- Адрес -->
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="АДРЕС"
+                    android:textSize="10sp"
+                    android:textColor="#9E9E9E"
+                    android:textAllCaps="true"
+                    android:letterSpacing="0.08"/>
+                <TextView
+                    android:id="@+id/tvProxyHost"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="192.168.43.1"
+                    android:textSize="15sp"
+                    android:textStyle="bold"
+                    android:textColor="#212121"
+                    android:layout_marginBottom="10dp"/>
+
+                <!-- Порт -->
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="ПОРТ"
+                    android:textSize="10sp"
+                    android:textColor="#9E9E9E"
+                    android:textAllCaps="true"
+                    android:letterSpacing="0.08"/>
+                <TextView
+                    android:id="@+id/tvProxyPort"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="1080"
+                    android:textSize="15sp"
+                    android:textStyle="bold"
+                    android:textColor="#212121"
+                    android:layout_marginBottom="10dp"/>
+
+                <!-- Авторизация -->
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="ПАРОЛЬ"
+                    android:textSize="10sp"
+                    android:textColor="#9E9E9E"
+                    android:textAllCaps="true"
+                    android:letterSpacing="0.08"/>
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="не требуется"
+                    android:textSize="13sp"
+                    android:textColor="#757575"/>
+
+            </LinearLayout>
+        </LinearLayout>
+
+        <!-- Разделитель -->
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="1dp"
+            android:background="#E0E0E0"
+            android:layout_marginBottom="14dp"/>
+
+        <!-- Инструкции по платформам -->
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Как настроить на клиенте:"
+            android:textSize="13sp"
+            android:textStyle="bold"
+            android:textColor="#212121"
+            android:layout_marginBottom="10dp"/>
+
+        <!-- Android -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:layout_marginBottom="10dp">
+
+            <TextView
+                android:layout_width="24dp"
+                android:layout_height="wrap_content"
+                android:text="🤖"
+                android:textSize="16sp"/>
+
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:orientation="vertical"
+                android:paddingStart="6dp">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Android"
+                    android:textSize="13sp"
+                    android:textStyle="bold"
+                    android:textColor="#212121"/>
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Настройки WiFi → удержать вашу сеть → Изменить → Дополнительно → Прокси-сервер: Вручную"
+                    android:textSize="12sp"
+                    android:textColor="#616161"/>
+            </LinearLayout>
+        </LinearLayout>
+
+        <!-- iOS -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:layout_marginBottom="10dp">
+
+            <TextView
+                android:layout_width="24dp"
+                android:layout_height="wrap_content"
+                android:text="🍎"
+                android:textSize="16sp"/>
+
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:orientation="vertical"
+                android:paddingStart="6dp">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="iPhone / iPad"
+                    android:textSize="13sp"
+                    android:textStyle="bold"
+                    android:textColor="#212121"/>
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Настройки → Wi-Fi → ⓘ рядом с сетью → Настройка прокси → Вручную"
+                    android:textSize="12sp"
+                    android:textColor="#616161"/>
+            </LinearLayout>
+        </LinearLayout>
+
+        <!-- Windows -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:layout_marginBottom="10dp">
+
+            <TextView
+                android:layout_width="24dp"
+                android:layout_height="wrap_content"
+                android:text="🖥️"
+                android:textSize="16sp"/>
+
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:orientation="vertical"
+                android:paddingStart="6dp">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Windows"
+                    android:textSize="13sp"
+                    android:textStyle="bold"
+                    android:textColor="#212121"/>
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Параметры → Сеть → Прокси → Использовать прокси-сервер → SOCKS"
+                    android:textSize="12sp"
+                    android:textColor="#616161"/>
+            </LinearLayout>
+        </LinearLayout>
+
+        <!-- macOS -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal">
+
+            <TextView
+                android:layout_width="24dp"
+                android:layout_height="wrap_content"
+                android:text="💻"
+                android:textSize="16sp"/>
+
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:orientation="vertical"
+                android:paddingStart="6dp">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="macOS"
+                    android:textSize="13sp"
+                    android:textStyle="bold"
+                    android:textColor="#212121"/>
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Системные настройки → Сеть → Дополнительно → Прокси → SOCKS-прокси"
+                    android:textSize="12sp"
+                    android:textColor="#616161"/>
+            </LinearLayout>
+        </LinearLayout>
+
+        <!-- Скрытое поле для tvHotspotInstructions (используется в коде) -->
+        <TextView
+            android:id="@+id/tvHotspotInstructions"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:visibility="gone"/>
+
+    </LinearLayout>
+</ScrollView>

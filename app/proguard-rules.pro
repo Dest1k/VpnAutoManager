@@ -1,0 +1,3 @@
+-keep class com.vpnauto.manager.model.** { *; }
+-keepattributes Signature
+-keepattributes *Annotation*

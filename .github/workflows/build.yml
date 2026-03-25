@@ -1,0 +1,171 @@
+name: Build APK
+
+on:
+  push:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          cache: gradle
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v3
+        with:
+          gradle-version: '8.0'
+
+      - name: Download xray-core and tun2socks
+        run: |
+          python3 << 'PYEOF'
+          import urllib.request, json, os, zipfile, sys, struct
+
+          def get_latest(owner, repo):
+              req = urllib.request.Request(
+                  f"https://api.github.com/repos/{owner}/{repo}/releases/latest",
+                  headers={"Accept": "application/vnd.github+json", "User-Agent": "GitHub-Actions"}
+              )
+              with urllib.request.urlopen(req, timeout=20) as r:
+                  return json.loads(r.read())
+
+          def is_elf(path):
+              try:
+                  with open(path, "rb") as f: return f.read(4) == b'\x7fELF'
+              except: return False
+
+          def download(url, dest):
+              print(f"  GET {url}")
+              req = urllib.request.Request(url, headers={"User-Agent": "curl/7.88"})
+              with urllib.request.urlopen(req, timeout=180) as r, open(dest, "wb") as f:
+                  total = 0
+                  while True:
+                      chunk = r.read(65536)
+                      if not chunk: break
+                      f.write(chunk); total += len(chunk)
+              print(f"  {total:,} bytes")
+              return total
+
+          os.makedirs("app/src/main/jniLibs/arm64-v8a",   exist_ok=True)
+          os.makedirs("app/src/main/jniLibs/armeabi-v7a",  exist_ok=True)
+          os.makedirs("app/src/main/jniLibs/x86_64",       exist_ok=True)
+
+          # ── xray-core ──────────────────────────────────────────────────
+          print("\n=== xray-core ===")
+          data = get_latest("XTLS", "Xray-core")
+          tag  = data["tag_name"]
+          print(f"Latest: {tag}")
+          assets = {a["name"]: a["browser_download_url"] for a in data.get("assets", [])}
+          print(f"Android assets: {[k for k in assets if 'android' in k.lower()]}")
+
+          for abi, zipname in [("arm64-v8a","Xray-android-arm64-v8a.zip"),
+                                ("armeabi-v7a","Xray-android-arm32-v7a.zip"),
+                                ("x86_64","Xray-android-x86_64.zip")]:
+              if zipname not in assets:
+                  print(f"SKIP {abi}: {zipname} not in release")
+                  continue
+              tmp = f"/tmp/xray_{abi}.zip"
+              download(assets[zipname], tmp)
+              out = f"app/src/main/jniLibs/{abi}/libxray.so"
+              with zipfile.ZipFile(tmp) as z:
+                  entry = next((n for n in z.namelist() if n.endswith("/xray") or n == "xray"), None)
+                  if not entry: print(f"ERROR: no xray in {zipname}"); continue
+                  with z.open(entry) as src, open(out, "wb") as dst: dst.write(src.read())
+              os.chmod(out, 0o755)
+              if not is_elf(out): print(f"ERROR: not ELF: {out}"); continue
+              print(f"  OK {out}: {os.path.getsize(out):,} bytes")
+
+          # ── tun2socks (xjasonlyu/tun2socks — Go binary, Android-native) ──
+          print("\n=== tun2socks ===")
+          try:
+              data = get_latest("xjasonlyu", "tun2socks")
+              tag  = data["tag_name"]
+              print(f"Latest: {tag}")
+              assets = {a["name"]: a["browser_download_url"] for a in data.get("assets", [])}
+              print(f"Assets: {list(assets.keys())}")
+
+              # ARM64
+              t2s_arm64 = None
+              for name in ["tun2socks-android-arm64.zip", "tun2socks-android-arm64",
+                            "tun2socks-linux-arm64.zip",  "tun2socks-linux-arm64"]:
+                  if name in assets:
+                      t2s_arm64 = (name, assets[name]); break
+
+              if t2s_arm64:
+                  fname, url = t2s_arm64
+                  tmp = f"/tmp/{fname}"
+                  download(url, tmp)
+                  out = "app/src/main/jniLibs/arm64-v8a/libtun2socks.so"
+                  if fname.endswith(".zip"):
+                      with zipfile.ZipFile(tmp) as z:
+                          print(f"  ZIP: {z.namelist()}")
+                          entry = next((n for n in z.namelist()
+                                        if "tun2socks" in n and not n.endswith("/")), None)
+                          if not entry: raise Exception("tun2socks binary not found in zip")
+                          with z.open(entry) as src, open(out, "wb") as dst: dst.write(src.read())
+                  else:
+                      import shutil; shutil.copy(tmp, out)
+                  os.chmod(out, 0o755)
+                  if not is_elf(out): raise Exception(f"not ELF: {out}")
+                  print(f"  OK libtun2socks.so: {os.path.getsize(out):,} bytes")
+              else:
+                  print(f"WARNING: no ARM64 tun2socks binary found")
+          except Exception as e:
+              print(f"tun2socks download failed: {e}")
+              print("Build will continue — check FileLogger on device for diagnostics")
+
+          print("\n=== All native libs ===")
+          for root, dirs, files in os.walk("app/src/main/jniLibs"):
+              for f in files:
+                  if f.endswith(".so"):
+                      p = os.path.join(root, f)
+                      print(f"  {p}: {os.path.getsize(p):,} bytes  ELF={is_elf(p)}")
+          PYEOF
+
+      - name: Verify arm64 xray (required)
+        run: |
+          if [ ! -f "app/src/main/jniLibs/arm64-v8a/libxray.so" ]; then
+            echo "ERROR: libxray.so missing!"
+            exit 1
+          fi
+          MAGIC=$(xxd -l 4 app/src/main/jniLibs/arm64-v8a/libxray.so | awk '{print $2}')
+          echo "libxray.so ELF magic: $MAGIC"
+          if ! echo "$MAGIC" | grep -q "7f45"; then
+            echo "ERROR: not a valid ELF!"
+            exit 1
+          fi
+          echo "✅ libxray.so OK"
+
+      - name: Grant execute permission for gradlew
+        run: chmod +x gradlew || true
+
+      - name: Build debug APK
+        run: gradle assembleDebug
+
+      - name: Verify APK has native libs
+        run: |
+          APK=$(find app/build/outputs/apk/debug/ -name "*.apk" | head -1)
+          echo "APK: $APK"
+          unzip -l "$APK" | grep "lib/" | head -20
+
+      - name: Rename APK
+        run: |
+          find app/build/outputs/apk/debug/ -name "*.apk" \
+            -exec mv {} app/build/outputs/apk/debug/VpnAutoManager-debug.apk \; || true
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: VpnAutoManager-debug
+          path: app/build/outputs/apk/debug/VpnAutoManager-debug.apk
+          retention-days: 7
+          if-no-files-found: error

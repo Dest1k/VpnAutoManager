@@ -1,0 +1,19 @@
+*.iml
+.gradle
+/local.properties
+/.idea
+.DS_Store
+/build
+/captures
+.externalNativeBuild
+.cxx
+local.properties
+
+# Build outputs
+app/build/
+
+# Gradle wrapper jar (скачивается автоматически)
+gradle/wrapper/gradle-wrapper.jar
+
+# xray binaries - downloaded by GitHub Actions
+app/src/main/jniLibs/**/*.so
