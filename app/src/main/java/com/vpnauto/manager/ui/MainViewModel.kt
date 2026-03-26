@@ -291,6 +291,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun unregisterNetworkRules() = NetworkRules.unregisterReceiver(ctx)
 
+    fun getCachedServers(subId: String) = repo.getCachedServers(subId)
+
+    suspend fun fetchServersForSub(sub: Subscription): List<ServerConfig>? =
+        repo.fetchSubscription(sub).getOrNull()
+
     fun toggleSubscription(sub: Subscription, enabled: Boolean) {
         repo.updateSubscription(sub.copy(isEnabled = enabled)); _subscriptions.value = repo.getSubscriptions()
     }

@@ -7,6 +7,7 @@ import android.view.ViewGroup
 import android.widget.ArrayAdapter
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.activityViewModels
+import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.snackbar.Snackbar
@@ -16,6 +17,9 @@ import com.vpnauto.manager.model.Subscription
 import com.vpnauto.manager.service.DirectVpnService
 import com.vpnauto.manager.service.LocalProxyServer
 import com.vpnauto.manager.service.QrCodeGenerator
+import com.vpnauto.manager.util.PingTester
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.launch
 
 class MainFragment : Fragment() {
 
@@ -24,6 +28,7 @@ class MainFragment : Fragment() {
     private val viewModel: MainViewModel by activityViewModels()
     private lateinit var serverAdapter: ServerAdapter
     private lateinit var subscriptionAdapter: SubscriptionAdapter
+    private var pingAllJob: Job? = null
 
     override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, saved: Bundle?): View {
         _binding = ActivityMainBinding.inflate(inflater, container, false)
@@ -48,7 +53,8 @@ class MainFragment : Fragment() {
         }
         subscriptionAdapter = SubscriptionAdapter(
             onToggle = { sub: Subscription, enabled: Boolean -> viewModel.toggleSubscription(sub, enabled) },
-            onImport = { sub: Subscription -> viewModel.importSubscriptionToV2Ray(sub) }
+            onImport = { sub: Subscription -> viewModel.importSubscriptionToV2Ray(sub) },
+            onPing   = { sub: Subscription, holder: SubscriptionAdapter.ViewHolder -> pingSubscription(sub, holder) }
         )
         binding.rvSubscriptions.apply {
             layoutManager = LinearLayoutManager(requireContext())
@@ -99,6 +105,7 @@ class MainFragment : Fragment() {
 
         binding.btnAddCustomSub.setOnClickListener { showAddCustomSubscriptionDialog() }
         binding.btnSettings.setOnClickListener { showSettingsDialog() }
+        binding.btnPingAllSubs.setOnClickListener { pingAllSubscriptions() }
     }
 
     private fun observeViewModel() {
@@ -268,6 +275,87 @@ class MainFragment : Fragment() {
             .setNegativeButton("Отмена", null).show()
     }
 
+    // ─── Пинг-тест подписок ──────────────────────────────────────
+
+    private fun pingSubscription(sub: Subscription, holder: SubscriptionAdapter.ViewHolder) {
+        viewLifecycleOwner.lifecycleScope.launch {
+            holder.tvPingResult.visibility = View.VISIBLE
+            holder.tvPingResult.text = "⏳ загрузка..."
+            holder.btnPing.isEnabled = false
+
+            var servers = viewModel.getCachedServers(sub.id)
+            if (servers.isEmpty()) {
+                holder.tvPingResult.text = "⏳ скачиваем серверы..."
+                servers = viewModel.fetchServersForSub(sub) ?: emptyList()
+            }
+
+            if (servers.isEmpty()) {
+                holder.tvPingResult.text = "⚠️ нет серверов"
+                holder.btnPing.isEnabled = true
+                return@launch
+            }
+
+            holder.tvPingResult.text = "⏳ пинг 0/${servers.size}..."
+            val tested = PingTester.testServers(servers) { done, total ->
+                holder.tvPingResult.text = "⏳ пинг $done/$total..."
+            }
+
+            val reachable = tested.count { it.isReachable }
+            val best = tested.firstOrNull { it.isReachable }
+            val resultText = if (best != null)
+                "✅ $reachable/${tested.size} · лучший: ${best.pingMs}ms"
+            else
+                "❌ нет доступных (${tested.size} проверено)"
+            holder.tvPingResult.text = resultText
+            subscriptionAdapter.setPingResult(sub.id, resultText)
+            holder.btnPing.isEnabled = true
+        }
+    }
+
+    private fun pingAllSubscriptions() {
+        if (pingAllJob?.isActive == true) {
+            pingAllJob?.cancel()
+            pingAllJob = null
+            binding.btnPingAllSubs.text = "📡 Пинг"
+            return
+        }
+        val subs = viewModel.subscriptions.value?.filter { it.isEnabled } ?: return
+        if (subs.isEmpty()) { showSnackbar("Нет включённых подписок"); return }
+
+        binding.btnPingAllSubs.text = "✕ Стоп"
+        pingAllJob = viewLifecycleOwner.lifecycleScope.launch {
+            try {
+                for (sub in subs) {
+                    if (!isActive) break
+                    subscriptionAdapter.setPingResult(sub.id, "⏳ загрузка...")
+                    var servers = viewModel.getCachedServers(sub.id)
+                    if (servers.isEmpty()) {
+                        subscriptionAdapter.setPingResult(sub.id, "⏳ скачиваем...")
+                        servers = viewModel.fetchServersForSub(sub) ?: emptyList()
+                    }
+                    if (servers.isEmpty()) {
+                        subscriptionAdapter.setPingResult(sub.id, "⚠️ нет серверов")
+                        continue
+                    }
+                    subscriptionAdapter.setPingResult(sub.id, "⏳ пинг 0/${servers.size}...")
+                    val tested = PingTester.testServers(servers) { done, total ->
+                        subscriptionAdapter.setPingResult(sub.id, "⏳ пинг $done/$total...")
+                    }
+                    val reachable = tested.count { it.isReachable }
+                    val best = tested.firstOrNull { it.isReachable }
+                    val resultText = if (best != null)
+                        "✅ $reachable/${tested.size} · лучший: ${best.pingMs}ms"
+                    else
+                        "❌ нет доступных (${tested.size} проверено)"
+                    subscriptionAdapter.setPingResult(sub.id, resultText)
+                }
+            } finally {
+                binding.btnPingAllSubs.text = "📡 Пинг"
+                pingAllJob = null
+            }
+        }
+    }
+
     private fun showSnackbar(message: String, isError: Boolean = false) {
         val s = Snackbar.make(binding.root, message, Snackbar.LENGTH_LONG)
         if (isError) s.setBackgroundTint(requireContext().getColor(R.color.error_color))
@@ -275,6 +363,7 @@ class MainFragment : Fragment() {
     }
 
     override fun onDestroyView() {
+        pingAllJob?.cancel()
         super.onDestroyView()
         _binding = null
     }

@@ -3,83 +3,112 @@
     xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:orientation="horizontal"
-    android:paddingVertical="8dp"
-    android:gravity="center_vertical">
+    android:orientation="vertical"
+    android:paddingVertical="8dp">
 
     <LinearLayout
-        android:layout_width="0dp"
+        android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_weight="1"
-        android:orientation="vertical"
-        android:paddingEnd="8dp">
-
-        <TextView
-            android:id="@+id/tvSubName"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="Subscription name"
-            android:textSize="13sp"
-            android:textColor="@color/text_primary"
-            android:maxLines="1"
-            android:ellipsize="end"/>
+        android:orientation="horizontal"
+        android:gravity="center_vertical">
 
         <LinearLayout
-            android:layout_width="match_parent"
+            android:layout_width="0dp"
             android:layout_height="wrap_content"
-            android:orientation="horizontal">
+            android:layout_weight="1"
+            android:orientation="vertical"
+            android:paddingEnd="4dp">
 
             <TextView
-                android:id="@+id/tvSubCount"
-                android:layout_width="wrap_content"
+                android:id="@+id/tvSubName"
+                android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="—"
-                android:textSize="11sp"
-                android:textColor="@color/text_secondary"/>
+                android:text="Subscription name"
+                android:textSize="13sp"
+                android:textColor="@color/text_primary"
+                android:maxLines="1"
+                android:ellipsize="end"/>
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal">
+
+                <TextView
+                    android:id="@+id/tvSubCount"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="—"
+                    android:textSize="11sp"
+                    android:textColor="@color/text_secondary"/>
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text=" · "
+                    android:textSize="11sp"
+                    android:textColor="@color/text_secondary"/>
+
+                <TextView
+                    android:id="@+id/tvSubLastUpdate"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="—"
+                    android:textSize="11sp"
+                    android:textColor="@color/text_secondary"/>
+
+            </LinearLayout>
 
             <TextView
-                android:layout_width="wrap_content"
+                android:id="@+id/tvSubUrl"
+                android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text=" · "
-                android:textSize="11sp"
-                android:textColor="@color/text_secondary"/>
-
-            <TextView
-                android:id="@+id/tvSubLastUpdate"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="—"
-                android:textSize="11sp"
-                android:textColor="@color/text_secondary"/>
+                android:text="filename.txt"
+                android:textSize="10sp"
+                android:textColor="@color/text_hint"
+                android:maxLines="1"
+                android:ellipsize="start"/>
 
         </LinearLayout>
 
-        <TextView
-            android:id="@+id/tvSubUrl"
-            android:layout_width="match_parent"
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btnSubPing"
+            style="@style/Widget.Material3.Button.TextButton"
+            android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="filename.txt"
-            android:textSize="10sp"
-            android:textColor="@color/text_hint"
-            android:maxLines="1"
-            android:ellipsize="start"/>
+            android:text="📡"
+            android:textSize="14sp"
+            android:minWidth="0dp"
+            android:paddingStart="6dp"
+            android:paddingEnd="6dp"/>
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btnSubImport"
+            style="@style/Widget.Material3.Button.TextButton"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="→"
+            android:textSize="16sp"
+            android:minWidth="0dp"
+            android:paddingStart="4dp"
+            android:paddingEnd="4dp"/>
+
+        <com.google.android.material.switchmaterial.SwitchMaterial
+            android:id="@+id/switchSubEnabled"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"/>
 
     </LinearLayout>
 
-    <com.google.android.material.button.MaterialButton
-        android:id="@+id/btnSubImport"
-        style="@style/Widget.Material3.Button.TextButton"
-        android:layout_width="wrap_content"
+    <!-- Результат пинг-теста (скрыт по умолчанию) -->
+    <TextView
+        android:id="@+id/tvSubPingResult"
+        android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="→"
-        android:textSize="16sp"
-        android:minWidth="0dp"
-        android:paddingStart="4dp"
-        android:paddingEnd="4dp"/>
-
-    <com.google.android.material.switchmaterial.SwitchMaterial
-        android:id="@+id/switchSubEnabled"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"/>
+        android:text=""
+        android:textSize="11sp"
+        android:textColor="@color/ping_good"
+        android:visibility="gone"
+        android:layout_marginTop="2dp"/>
 
 </LinearLayout>

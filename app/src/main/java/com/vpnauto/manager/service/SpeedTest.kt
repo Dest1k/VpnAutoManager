@@ -1,6 +1,7 @@
 package com.vpnauto.manager.service
 
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
@@ -36,17 +37,24 @@ object SpeedTest {
         return runInternal(onProgress)
     }
 
-    private suspend fun runInternal(onProgress: (String) -> Unit): SpeedTestResult =
-        withContext(Dispatchers.IO) {
-            onProgress("Измеряем пинг...")
-            val ping = measurePing()
-            onProgress("Пинг: ${ping}ms. Тест загрузки...")
-            val down = measureDownload(onProgress)
-            onProgress("Загрузка: ${String.format("%.1f", down)} Мбит/с. Тест отдачи...")
-            val up = measureUpload(onProgress)
-            onProgress("Готово!")
-            SpeedTestResult(down, up, ping)
-        }
+    // onProgress вызывается на том потоке, откуда вызывается runInternal (обычно Main).
+    // Каждая блокирующая операция выполняется в Dispatchers.IO.
+    private suspend fun runInternal(onProgress: (String) -> Unit): SpeedTestResult {
+        onProgress("Измеряем пинг...")
+        val ping = withContext(Dispatchers.IO) { measurePing() }
+        ensureActive()
+
+        onProgress("Пинг: ${ping}ms. Тест загрузки...")
+        val down = withContext(Dispatchers.IO) { measureDownload() }
+        ensureActive()
+
+        onProgress("Загрузка: ${String.format("%.1f", down)} Мбит/с. Тест отдачи...")
+        val up = withContext(Dispatchers.IO) { measureUpload() }
+        ensureActive()
+
+        onProgress("Готово!")
+        return SpeedTestResult(down, up, ping)
+    }
 
     private fun measurePing(): Long {
         return try {
@@ -58,7 +66,7 @@ object SpeedTest {
         } catch (_: Exception) { -1L }
     }
 
-    private fun measureDownload(onProgress: (String) -> Unit): Double {
+    private fun measureDownload(): Double {
         for (url in DOWNLOAD_URLS) {
             try {
                 val req = Request.Builder().url(url).build()
@@ -72,7 +80,7 @@ object SpeedTest {
         return 0.0
     }
 
-    private fun measureUpload(onProgress: (String) -> Unit): Double {
+    private fun measureUpload(): Double {
         try {
             val data = ByteArray(1_000_000)  // 1 MB upload
             val body = data.toRequestBody("application/octet-stream".toMediaType())
