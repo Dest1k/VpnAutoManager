@@ -74,7 +74,7 @@ class Tun2socksManager(private val context: Context) {
                         binary.absolutePath,
                         "-device",   "fd://0",
                         "-proxy",    "socks5://127.0.0.1:$socksPort",
-                        "-loglevel", "warning"
+                        "-loglevel", "warn"
                     )
                         .redirectInput(ProcessBuilder.Redirect.INHERIT)
                         .redirectErrorStream(true)

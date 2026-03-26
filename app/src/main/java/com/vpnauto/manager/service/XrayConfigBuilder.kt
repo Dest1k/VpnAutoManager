@@ -65,7 +65,12 @@ object XrayConfigBuilder {
         // Routing: Telegram DC → proxy (приоритет), loopback → direct
         // Приватные IP не достигают xray (они не в TUN маршрутах)
         root.put("routing", JSONObject().apply {
-            put("domainStrategy", "IPIfNonMatch")
+            // AsIs: НЕ делать лишний DNS-резолв для каждого соединения.
+            // IPIfNonMatch вызывал задержку/зависание при каждом соединении:
+            // xray резолвил домен через 8.8.8.8 direct, и если DNS отвечал
+            // медленно — TCP-соединение зависало до таймаута. Chrome выживал
+            // за счёт собственного DoH, а другие приложения падали.
+            put("domainStrategy", "AsIs")
             put("rules", JSONArray().apply {
 
                 // 1. Блокируем UDP/443 (QUIC/HTTP3) — XTLS с этим не работает.
@@ -125,6 +130,13 @@ object XrayConfigBuilder {
                     put("type", "field")
                     put("outboundTag", "direct")
                     put("ip", JSONArray().apply { put("127.0.0.0/8"); put("::1/128") })
+                })
+                // 6. Всё остальное → proxy (явный catch-all, xray по умолчанию
+                //    использует первый outbound, но явное правило надёжнее)
+                put(JSONObject().apply {
+                    put("type", "field")
+                    put("network", "tcp,udp")
+                    put("outboundTag", "proxy")
                 })
             })
         })
