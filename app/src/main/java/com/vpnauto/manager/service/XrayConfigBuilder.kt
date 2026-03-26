@@ -68,26 +68,8 @@ object XrayConfigBuilder {
             put("domainStrategy", "IPIfNonMatch")
             put("rules", JSONArray().apply {
 
-                // 1. Блокируем UDP/443 (QUIC/HTTP3) — XTLS с этим не работает.
-                //    Приложения (Chrome, Telegram) автоматически упадут на TCP/TLS.
-                put(JSONObject().apply {
-                    put("type", "field")
-                    put("network", "udp")
-                    put("port", "443")
-                    put("outboundTag", "block")
-                })
-
-                // 2. DNS (UDP+TCP порт 53) — напрямую, без тоннеля.
-                //    Убирает задержку 3-4с на каждый DNS-запрос.
-                //    Google/Cloudflare DNS доступны из РФ напрямую.
-                put(JSONObject().apply {
-                    put("type", "field")
-                    put("network", "udp,tcp")
-                    put("port", "53")
-                    put("outboundTag", "direct")
-                })
-
-                // 3. Telegram DC IP-диапазоны — принудительно через proxy
+                // 1. Telegram DC IP-диапазоны — принудительно через proxy
+                //    (до правила UDP/443, иначе Telegram UDP блокируется)
                 put(JSONObject().apply {
                     put("type", "field")
                     put("outboundTag", "proxy")
@@ -106,7 +88,7 @@ object XrayConfigBuilder {
                         put("2001:67c:4e8::/48")   // DC IPv6
                     })
                 })
-                // 4. Telegram домены — принудительно через proxy
+                // 2. Telegram домены — принудительно через proxy
                 put(JSONObject().apply {
                     put("type", "field")
                     put("outboundTag", "proxy")
@@ -120,6 +102,27 @@ object XrayConfigBuilder {
                         put("domain:telegram.dog")
                     })
                 })
+
+                // 3. UDP/443 (QUIC/HTTP3) → direct.
+                //    blackhole молча дропает пакеты → браузер получает ERR_QUIC_PROTOCOL_ERROR
+                //    вместо быстрого fallback на TCP/TLS. direct позволяет QUIC работать
+                //    нативно; браузеры сами откажутся от него, если ISP заблокирует UDP.
+                put(JSONObject().apply {
+                    put("type", "field")
+                    put("network", "udp")
+                    put("port", "443")
+                    put("outboundTag", "direct")
+                })
+
+                // 4. DNS (UDP+TCP порт 53) — напрямую, без тоннеля.
+                //    Убирает задержку 3-4с на каждый DNS-запрос.
+                put(JSONObject().apply {
+                    put("type", "field")
+                    put("network", "udp,tcp")
+                    put("port", "53")
+                    put("outboundTag", "direct")
+                })
+
                 // 5. Loopback → direct
                 put(JSONObject().apply {
                     put("type", "field")
