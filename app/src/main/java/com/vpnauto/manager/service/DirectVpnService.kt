@@ -184,8 +184,7 @@ class DirectVpnService : VpnService() {
         log("Запуск tun2socks…")
         val t2sOk = withContext(Dispatchers.IO) { tun2socks.start(pfd, 10808) }
         if (!t2sOk) {
-            FileLogger.log("WARNING: tun2socks не запустился, пробуем продолжить")
-            ConnectionLog.w("tun2socks не запустился (см. FileLogger)")
+            throw Exception("tun2socks не запустился — проверьте права TUN-устройства")
         }
 
         isRunning = true

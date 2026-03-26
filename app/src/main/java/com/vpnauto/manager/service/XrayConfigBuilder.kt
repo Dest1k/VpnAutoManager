@@ -33,7 +33,9 @@ object XrayConfigBuilder {
                 })
                 put("sniffing", JSONObject().apply {
                     put("enabled", true)
-                    put("destOverride", JSONArray().apply { put("http"); put("tls") })
+                    put("destOverride", JSONArray().apply {
+                        put("http"); put("tls"); put("quic")
+                    })
                 })
             })
         })
@@ -45,11 +47,45 @@ object XrayConfigBuilder {
             put(JSONObject().apply { put("protocol", "blackhole"); put("tag", "block") })
         })
 
-        // Routing: только loopback идёт direct — всё остальное через proxy
+        // Routing: Telegram DC → proxy (приоритет), loopback → direct
         // Приватные IP не достигают xray (они не в TUN маршрутах)
         root.put("routing", JSONObject().apply {
-            put("domainStrategy", "AsIs")
+            put("domainStrategy", "IPIfNonMatch")
             put("rules", JSONArray().apply {
+                // Telegram DC IP-диапазоны — принудительно через proxy
+                put(JSONObject().apply {
+                    put("type", "field")
+                    put("outboundTag", "proxy")
+                    put("ip", JSONArray().apply {
+                        put("149.154.160.0/20")   // DC1-DC5
+                        put("91.108.4.0/22")       // DC2
+                        put("91.108.8.0/22")       // DC3
+                        put("91.108.12.0/22")      // DC4
+                        put("91.108.16.0/22")      // DC5
+                        put("91.108.20.0/22")      // DC media
+                        put("91.108.56.0/22")      // DC updates
+                        put("95.161.64.0/20")      // Telegram CDN
+                        put("185.76.151.0/24")     // Telegram web
+                        put("2001:b28:f23d::/48")  // DC IPv6
+                        put("2001:b28:f23f::/48")  // DC IPv6
+                        put("2001:67c:4e8::/48")   // DC IPv6
+                    })
+                })
+                // Telegram домены — принудительно через proxy
+                put(JSONObject().apply {
+                    put("type", "field")
+                    put("outboundTag", "proxy")
+                    put("domain", JSONArray().apply {
+                        put("domain:telegram.org")
+                        put("domain:t.me")
+                        put("domain:telegram.me")
+                        put("domain:telegra.ph")
+                        put("domain:telesco.pe")
+                        put("domain:tdesktop.com")
+                        put("domain:telegram.dog")
+                    })
+                })
+                // Loopback → direct
                 put(JSONObject().apply {
                     put("type", "field")
                     put("outboundTag", "direct")

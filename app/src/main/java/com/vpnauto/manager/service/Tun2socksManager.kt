@@ -2,6 +2,8 @@ package com.vpnauto.manager.service
 
 import android.content.Context
 import android.os.ParcelFileDescriptor
+import android.system.Os
+import android.system.OsConstants
 import java.io.File
 import java.util.concurrent.TimeUnit
 
@@ -94,16 +96,27 @@ class Tun2socksManager(private val context: Context) {
     fun isRunning(): Boolean = process?.isAlive == true
 
     /**
-     * На Android Os.fcntl недоступен напрямую.
-     * Используем /proc/self/fd/<N> — симлинк на открытый дескриптор,
-     * tun2socks поддерживает этот путь как устройство.
+     * Подготавливает fd для наследования дочерним процессом (tun2socks).
+     *
+     * Android/Linux по умолчанию ставит CLOEXEC на дескрипторы — дочерний
+     * процесс НЕ наследует fd. Снимаем CLOEXEC, чтобы tun2socks получил
+     * рабочий fd. Используем "fd://<N>" — формат, который tun2socks понимает
+     * напрямую, без обращения к /proc/self/fd/ (который указывает на таблицу
+     * fd дочернего процесса, а не родителя).
      */
     private fun tunDevicePath(pfd: ParcelFileDescriptor): String {
         val fdNum = pfd.fd
-        // Попробуем /proc/self/fd/<N> — работает на Android
-        val procPath = "/proc/self/fd/$fdNum"
-        FileLogger.log("TUN device path: $procPath (fd=$fdNum)")
-        return procPath
+        try {
+            // Снимаем CLOEXEC — fd будет унаследован дочерним процессом
+            val flags = Os.fcntl(pfd.fileDescriptor, OsConstants.F_GETFD)
+            Os.fcntl(pfd.fileDescriptor, OsConstants.F_SETFD, flags and OsConstants.FD_CLOEXEC.inv())
+            FileLogger.log("TUN fd=$fdNum: CLOEXEC cleared for child process inheritance")
+        } catch (e: Exception) {
+            FileLogger.log("WARNING: failed to clear CLOEXEC on fd=$fdNum: ${e.message}")
+        }
+        val devicePath = "fd://$fdNum"
+        FileLogger.log("TUN device path: $devicePath (fd=$fdNum)")
+        return devicePath
     }
 
     private fun listNativeLibs() {
