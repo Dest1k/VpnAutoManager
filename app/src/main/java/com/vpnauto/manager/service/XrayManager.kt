@@ -139,17 +139,21 @@ class XrayManager(private val context: Context) {
                 .start()
 
             Thread {
-                xrayProcess?.inputStream?.bufferedReader()?.forEachLine { line ->
-                    if (line.isNotBlank()) {
-                        val level = when {
-                            line.contains("error",   ignoreCase = true)   -> LogLevel.ERROR
-                            line.contains("warning", ignoreCase = true)   -> LogLevel.WARN
-                            line.contains("started", ignoreCase = true) ||
-                            line.contains("ready",   ignoreCase = true)   -> LogLevel.OK
-                            else                                          -> LogLevel.INFO
+                try {
+                    xrayProcess?.inputStream?.bufferedReader()?.forEachLine { line ->
+                        if (line.isNotBlank()) {
+                            val level = when {
+                                line.contains("error",   ignoreCase = true)   -> LogLevel.ERROR
+                                line.contains("warning", ignoreCase = true)   -> LogLevel.WARN
+                                line.contains("started", ignoreCase = true) ||
+                                line.contains("ready",   ignoreCase = true)   -> LogLevel.OK
+                                else                                          -> LogLevel.INFO
+                            }
+                            ConnectionLog.add("xray: $line", level)
                         }
-                        ConnectionLog.add("xray: $line", level)
                     }
+                } catch (_: Exception) {
+                    // process.destroy() закрывает поток — InterruptedIOException ожидаем
                 }
             }.apply { isDaemon = true; start() }
 
