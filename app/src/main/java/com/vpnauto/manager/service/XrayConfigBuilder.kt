@@ -34,7 +34,7 @@ object XrayConfigBuilder {
                 put("sniffing", JSONObject().apply {
                     put("enabled", true)
                     put("destOverride", JSONArray().apply {
-                        put("http"); put("tls"); put("quic")
+                        put("http"); put("tls")
                     })
                 })
             })
@@ -52,7 +52,27 @@ object XrayConfigBuilder {
         root.put("routing", JSONObject().apply {
             put("domainStrategy", "IPIfNonMatch")
             put("rules", JSONArray().apply {
-                // Telegram DC IP-диапазоны — принудительно через proxy
+
+                // 1. Блокируем UDP/443 (QUIC/HTTP3) — XTLS с этим не работает.
+                //    Приложения (Chrome, Telegram) автоматически упадут на TCP/TLS.
+                put(JSONObject().apply {
+                    put("type", "field")
+                    put("network", "udp")
+                    put("port", "443")
+                    put("outboundTag", "block")
+                })
+
+                // 2. DNS (UDP+TCP порт 53) — напрямую, без тоннеля.
+                //    Убирает задержку 3-4с на каждый DNS-запрос.
+                //    Google/Cloudflare DNS доступны из РФ напрямую.
+                put(JSONObject().apply {
+                    put("type", "field")
+                    put("network", "udp,tcp")
+                    put("port", "53")
+                    put("outboundTag", "direct")
+                })
+
+                // 3. Telegram DC IP-диапазоны — принудительно через proxy
                 put(JSONObject().apply {
                     put("type", "field")
                     put("outboundTag", "proxy")
@@ -71,7 +91,7 @@ object XrayConfigBuilder {
                         put("2001:67c:4e8::/48")   // DC IPv6
                     })
                 })
-                // Telegram домены — принудительно через proxy
+                // 4. Telegram домены — принудительно через proxy
                 put(JSONObject().apply {
                     put("type", "field")
                     put("outboundTag", "proxy")
@@ -85,7 +105,7 @@ object XrayConfigBuilder {
                         put("domain:telegram.dog")
                     })
                 })
-                // Loopback → direct
+                // 5. Loopback → direct
                 put(JSONObject().apply {
                     put("type", "field")
                     put("outboundTag", "direct")
