@@ -440,11 +440,10 @@ class DirectVpnService : VpnService() {
     override fun onDestroy() {
         FileLogger.log("onDestroy")
         scope.cancel()
-        if (isRunning || tunPfd != null) {
-            tun2socks.stop()
-            runCatching { tunPfd?.close() }; tunPfd = null
-            xrayManager.stop()
-        }
+        // cleanup() уже вызван из stopVpn/cancelConnect — но на случай если
+        // сервис уничтожается системой без stopVpn, делаем повторную очистку.
+        // cleanup() идемпотентна: tunPfd обнуляется до close(), повторный вызов безопасен.
+        cleanup()
         super.onDestroy()
     }
 

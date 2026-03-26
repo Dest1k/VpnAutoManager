@@ -3,8 +3,8 @@ package com.vpnauto.manager.service
 import android.content.Context
 import android.os.ParcelFileDescriptor
 import android.system.Os
-import android.system.OsConstants
 import java.io.File
+import java.io.FileDescriptor
 import java.util.concurrent.TimeUnit
 
 /**
@@ -14,12 +14,19 @@ import java.util.concurrent.TimeUnit
  * Это заменяет самописный TunForwarder — не нужно реализовывать TCP-стек.
  *
  * Бинарник: libtun2socks.so (из nativeLibraryDir, скачивается в GitHub Actions)
- * Команда: tun2socks -device fd://<N> -proxy socks5://127.0.0.1:10808
+ *
+ * Проблема fd на Android: ProcessBuilder закрывает ВСЕ fd >= 3 в дочернем
+ * процессе (UNIXProcess_md.c / childActions). Единственный способ передать
+ * TUN fd — пробросить через stdin (fd 0) с помощью Os.dup2(), а tun2socks
+ * запускать с -device fd://0.
  */
 class Tun2socksManager(private val context: Context) {
 
     private val binary = File(context.applicationInfo.nativeLibraryDir, "libtun2socks.so")
     private var process: Process? = null
+
+    /** Лок для синхронизации dup2 на stdin (fd 0) — один запуск за раз. */
+    private val stdinLock = Any()
 
     val isInstalled: Boolean
         get() {
@@ -43,26 +50,53 @@ class Tun2socksManager(private val context: Context) {
         }
 
         return try {
-            val devicePath = tunDevicePath(pfd)
-            FileLogger.log("tun2socks start: device=$devicePath socks=127.0.0.1:$socksPort")
-            ConnectionLog.i("Запускаем tun2socks: device=$devicePath")
+            FileLogger.log("tun2socks start: TUN fd=${pfd.fd}, socks=127.0.0.1:$socksPort")
+            ConnectionLog.i("Запускаем tun2socks: fd=${pfd.fd} → stdin (fd://0)")
 
-            process = ProcessBuilder(
-                binary.absolutePath,
-                "-device",   devicePath,
-                "-proxy",    "socks5://127.0.0.1:$socksPort",
-                "-loglevel", "debug"
-            )
-                .redirectErrorStream(true)
-                .start()
+            /*
+             * Android's ProcessBuilder закрывает все fd >= 3 в дочернем процессе.
+             * Единственный способ передать TUN fd — подменить stdin (fd 0):
+             *
+             * 1. Сохраняем оригинальный stdin: savedStdin = dup(0)
+             * 2. dup2(tunFd, 0) — теперь stdin = TUN устройство
+             * 3. ProcessBuilder с redirectInput(INHERIT) — дочерний процесс
+             *    наследует stdin = TUN, stdout/stderr = pipe для логов
+             * 4. tun2socks -device fd://0 — читает/пишет TUN через fd 0
+             * 5. Восстанавливаем stdin: dup2(savedStdin, 0), close(savedStdin)
+             */
+            synchronized(stdinLock) {
+                val savedStdin = Os.dup(FileDescriptor.`in`)
+                try {
+                    Os.dup2(pfd.fileDescriptor, 0)
+                    FileLogger.log("tun2socks: dup2(tunFd=${pfd.fd}, 0) OK, stdin = TUN")
 
-            // Читаем вывод в лог
+                    process = ProcessBuilder(
+                        binary.absolutePath,
+                        "-device",   "fd://0",
+                        "-proxy",    "socks5://127.0.0.1:$socksPort",
+                        "-loglevel", "debug"
+                    )
+                        .redirectInput(ProcessBuilder.Redirect.INHERIT)
+                        .redirectErrorStream(true)
+                        .start()
+                } finally {
+                    Os.dup2(savedStdin, 0)
+                    Os.close(savedStdin)
+                    FileLogger.log("tun2socks: stdin restored")
+                }
+            }
+
+            // Читаем вывод в лог (stdout/stderr через pipe)
             Thread {
-                process?.inputStream?.bufferedReader()?.forEachLine { line ->
-                    if (line.isNotBlank()) {
-                        FileLogger.log("t2s: $line")
-                        ConnectionLog.i("tun2socks: $line")
+                try {
+                    process?.inputStream?.bufferedReader()?.forEachLine { line ->
+                        if (line.isNotBlank()) {
+                            FileLogger.log("t2s: $line")
+                            ConnectionLog.i("tun2socks: $line")
+                        }
                     }
+                } catch (_: Exception) {
+                    // process.destroy() закрывает поток — ожидаемо при остановке
                 }
             }.apply { isDaemon = true; start() }
 
@@ -94,30 +128,6 @@ class Tun2socksManager(private val context: Context) {
     }
 
     fun isRunning(): Boolean = process?.isAlive == true
-
-    /**
-     * Подготавливает fd для наследования дочерним процессом (tun2socks).
-     *
-     * Android/Linux по умолчанию ставит CLOEXEC на дескрипторы — дочерний
-     * процесс НЕ наследует fd. Снимаем CLOEXEC, чтобы tun2socks получил
-     * рабочий fd. Используем "fd://<N>" — формат, который tun2socks понимает
-     * напрямую, без обращения к /proc/self/fd/ (который указывает на таблицу
-     * fd дочернего процесса, а не родителя).
-     */
-    private fun tunDevicePath(pfd: ParcelFileDescriptor): String {
-        val fdNum = pfd.fd
-        try {
-            // Снимаем CLOEXEC — fd будет унаследован дочерним процессом
-            val flags = Os.fcntl(pfd.fileDescriptor, OsConstants.F_GETFD)
-            Os.fcntl(pfd.fileDescriptor, OsConstants.F_SETFD, flags and OsConstants.FD_CLOEXEC.inv())
-            FileLogger.log("TUN fd=$fdNum: CLOEXEC cleared for child process inheritance")
-        } catch (e: Exception) {
-            FileLogger.log("WARNING: failed to clear CLOEXEC on fd=$fdNum: ${e.message}")
-        }
-        val devicePath = "fd://$fdNum"
-        FileLogger.log("TUN device path: $devicePath (fd=$fdNum)")
-        return devicePath
-    }
 
     private fun listNativeLibs() {
         val dir = File(context.applicationInfo.nativeLibraryDir)
