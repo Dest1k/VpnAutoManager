@@ -9,13 +9,24 @@ object XrayConfigBuilder {
     fun build(server: ServerConfig, socksPort: Int = 10808): String {
         val root = JSONObject()
 
-        root.put("log", JSONObject().apply { put("loglevel", "debug") })
+        // warning — подавляет XTLS-padding/debug строки (debug генерирует их на каждый пакет)
+        root.put("log", JSONObject().apply { put("loglevel", "warning") })
 
-        // DNS — публичные серверы, они идут через TUN → tun2socks → xray → VPN
+        // DNS: явно через direct, чтобы xray's app/dns не шёл через proxy.
+        // Без явного outboundTag xray роутит внутренние DNS-запросы через
+        // основной outbound (proxy), что видно в логах как [xray.system >> proxy].
         root.put("dns", JSONObject().apply {
             put("servers", JSONArray().apply {
-                put("8.8.8.8")
-                put("1.1.1.1")
+                put(JSONObject().apply {
+                    put("address", "8.8.8.8")
+                    put("port", 53)
+                    put("outboundTag", "direct")
+                })
+                put(JSONObject().apply {
+                    put("address", "1.1.1.1")
+                    put("port", 53)
+                    put("outboundTag", "direct")
+                })
             })
         })
 
@@ -36,6 +47,10 @@ object XrayConfigBuilder {
                     put("destOverride", JSONArray().apply {
                         put("http"); put("tls")
                     })
+                    // routeOnly: sniffing только для роутинга, НЕ подменяет IP-назначение.
+                    // Без этого xray override-ит dst с оригинального IP на sniffed-домен
+                    // → делает лишний DNS-резолв → может получить другой IP.
+                    put("routeOnly", true)
                 })
             })
         })
