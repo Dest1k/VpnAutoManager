@@ -10,6 +10,7 @@ import android.view.ViewGroup
 import android.widget.ArrayAdapter
 import android.widget.TextView
 import android.widget.Toast
+import androidx.core.content.FileProvider
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.activityViewModels
 import androidx.recyclerview.widget.DiffUtil
@@ -19,6 +20,7 @@ import androidx.recyclerview.widget.RecyclerView
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.vpnauto.manager.R
 import com.vpnauto.manager.databinding.FragmentSettingsFullBinding
+import com.vpnauto.manager.service.FileLogger
 import com.vpnauto.manager.service.NetworkAction
 import com.vpnauto.manager.service.NetworkRules
 import com.vpnauto.manager.service.ProfileManager
@@ -107,6 +109,37 @@ class SettingsFragment : Fragment() {
 
         b.switchPingOnUpdate.isChecked = vm.pingOnUpdate
         b.switchPingOnUpdate.setOnCheckedChangeListener { _, v -> vm.pingOnUpdate = v }
+
+        // Диагностика: файловый лог
+        b.switchFileLogging.isChecked = vm.fileLoggingEnabled
+        b.switchFileLogging.setOnCheckedChangeListener { _, v -> vm.fileLoggingEnabled = v }
+
+        // Авто-подключение при запуске
+        b.switchAutoConnectOnLaunch.isChecked = vm.autoConnectOnLaunch
+        b.switchAutoConnectOnLaunch.setOnCheckedChangeListener { _, v -> vm.autoConnectOnLaunch = v }
+
+        // Поделиться логом
+        b.btnShareLog.setOnClickListener { shareLogFile() }
+    }
+
+    private fun shareLogFile() {
+        val file = FileLogger.getLogFile()
+        if (file == null || !file.exists()) {
+            Toast.makeText(requireContext(), "Файл лога не найден", Toast.LENGTH_SHORT).show()
+            return
+        }
+        val uri = FileProvider.getUriForFile(
+            requireContext(),
+            "${requireContext().packageName}.fileprovider",
+            file
+        )
+        val intent = Intent(Intent.ACTION_SEND).apply {
+            type = "text/plain"
+            putExtra(Intent.EXTRA_STREAM, uri)
+            putExtra(Intent.EXTRA_SUBJECT, "VPN Guard — лог")
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        }
+        startActivity(Intent.createChooser(intent, "Отправить лог"))
     }
 
     private fun showSplitTunnelingDialog() {

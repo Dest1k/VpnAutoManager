@@ -247,7 +247,7 @@ class DirectVpnService : VpnService() {
             ConnectionLog.i("Маршрутов: ${routes.size} (публичные IP, LAN исключён)")
 
             val b = Builder()
-                .setSession("VPN Auto")
+                .setSession("VPN Guard")
                 .addAddress("10.8.0.1", 30)
                 .addDnsServer("8.8.8.8")
                 .addDnsServer("1.1.1.1")
@@ -395,22 +395,20 @@ class DirectVpnService : VpnService() {
         stopSelf()
     }
 
-    /** Быстрая очистка без stopSelf (используется при переключении серверов) */
-    private fun quickCleanup() {
+    /** Останавливает tun2socks/xray и закрывает TUN fd. Идемпотентна. */
+    private fun tearDown() {
         tun2socks.stop()
-        val pfd = tunPfd; tunPfd = null
+        val pfd = tunPfd; tunPfd = null   // обнуляем до close() — защита от double-close
         runCatching { pfd?.close() }
         xrayManager.stop()
         isRunning = false; connectedServer = ""
     }
 
+    /** Быстрая очистка без broadcastStatus/stopSelf (при переключении серверов). */
+    private fun quickCleanup() = tearDown()
+
     private fun cleanup() {
-        // Сначала останавливаем tun2socks, потом закрываем fd — правильный порядок
-        tun2socks.stop()
-        val pfd = tunPfd; tunPfd = null     // обнуляем до close(), чтобы не было double-close
-        runCatching { pfd?.close() }
-        xrayManager.stop()
-        isRunning = false; connectedServer = ""
+        tearDown()
         broadcastStatus(false, "Отключено")
         FileLogger.log("=== cleanup done ===")
     }
@@ -463,7 +461,7 @@ class DirectVpnService : VpnService() {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
         return Notification.Builder(this, CHANNEL_VPN)
             .setSmallIcon(R.drawable.ic_vpn)
-            .setContentTitle("VPN Auto")
+            .setContentTitle("VPN Guard")
             .setContentText(text)
             .setContentIntent(openPi)
             .setOngoing(true)
