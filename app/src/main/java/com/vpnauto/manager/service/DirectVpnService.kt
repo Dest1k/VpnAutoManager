@@ -258,6 +258,12 @@ class DirectVpnService : VpnService() {
                 b.addRoute(addr, prefix)
             }
 
+            // Исключаем собственный UID приложения (включая дочерний процесс xray) из VPN-маршрутизации.
+            // Без этого xray's direct outbound (DNS, прямые соединения) попадают обратно в TUN,
+            // создавая бесконечную петлю: xray→TUN→tun2socks→xray→TUN→...
+            // VPN-сервер доступен напрямую через реальный сетевой интерфейс.
+            runCatching { b.addDisallowedApplication(packageName) }
+
             if (SplitTunneling.isEnabled()) {
                 SplitTunneling.getBypassPackages().forEach { pkg ->
                     runCatching { b.addDisallowedApplication(pkg) }
