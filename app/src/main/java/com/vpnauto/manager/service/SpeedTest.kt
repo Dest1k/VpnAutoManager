@@ -1,6 +1,7 @@
 package com.vpnauto.manager.service
 
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
 import okhttp3.MediaType.Companion.toMediaType
@@ -42,15 +43,15 @@ object SpeedTest {
     private suspend fun runInternal(onProgress: (String) -> Unit): SpeedTestResult {
         onProgress("Измеряем пинг...")
         val ping = withContext(Dispatchers.IO) { measurePing() }
-        ensureActive()
+        currentCoroutineContext().ensureActive()
 
         onProgress("Пинг: ${ping}ms. Тест загрузки...")
         val down = withContext(Dispatchers.IO) { measureDownload() }
-        ensureActive()
+        currentCoroutineContext().ensureActive()
 
         onProgress("Загрузка: ${String.format("%.1f", down)} Мбит/с. Тест отдачи...")
         val up = withContext(Dispatchers.IO) { measureUpload() }
-        ensureActive()
+        currentCoroutineContext().ensureActive()
 
         onProgress("Готово!")
         return SpeedTestResult(down, up, ping)
