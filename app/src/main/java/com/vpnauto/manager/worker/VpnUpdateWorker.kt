@@ -143,7 +143,7 @@ class VpnUpdateWorker(
     private fun createNotificationChannel() {
         val channel = NotificationChannel(
             CHANNEL_ID,
-            "VPN Auto обновления",
+            "VPN Guard обновления",
             NotificationManager.IMPORTANCE_DEFAULT
         ).apply {
             description = "Уведомления об обновлении VPN-подписок"
@@ -155,7 +155,7 @@ class VpnUpdateWorker(
     private fun showProgressNotification(text: String) {
         val notif = NotificationCompat.Builder(context, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_vpn)
-            .setContentTitle("VPN Auto")
+            .setContentTitle("VPN Guard")
             .setContentText(text)
             .setProgress(0, 0, true)
             .setOngoing(true)

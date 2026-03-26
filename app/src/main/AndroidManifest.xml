@@ -26,7 +26,7 @@
         android:name=".VpnApp"
         android:allowBackup="true"
         android:icon="@mipmap/ic_launcher"
-        android:label="VPN Auto"
+        android:label="VPN Guard"
         android:roundIcon="@mipmap/ic_launcher"
         android:supportsRtl="true"
         android:theme="@style/Theme.VpnAutoManager"
@@ -51,7 +51,7 @@
         <!-- Quick Settings Tile -->
         <service android:name=".service.VpnTile"
             android:icon="@drawable/ic_vpn"
-            android:label="VPN Auto"
+            android:label="VPN Guard"
             android:permission="android.permission.BIND_QUICK_SETTINGS_TILE"
             android:exported="true">
             <intent-filter>

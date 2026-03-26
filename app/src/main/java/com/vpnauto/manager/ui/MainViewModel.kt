@@ -76,12 +76,23 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         set(v) { repo.updateIntervalHours = v; rescheduleWork() }
     var autoConnect:    Boolean get() = repo.autoConnect;    set(v) { repo.autoConnect = v }
     var pingOnUpdate:   Boolean get() = repo.pingOnUpdate;   set(v) { repo.pingOnUpdate = v }
+    private val settingsPrefs get() = ctx.getSharedPreferences("settings", 0)
+
     var killSwitchEnabled: Boolean
-        get() = ctx.getSharedPreferences("settings", 0).getBoolean("kill_switch", true)
-        set(v) { ctx.getSharedPreferences("settings", 0).edit().putBoolean("kill_switch", v).apply() }
+        get() = settingsPrefs.getBoolean("kill_switch", true)
+        set(v) { settingsPrefs.edit().putBoolean("kill_switch", v).apply() }
     var autoReconnect: Boolean
-        get() = ctx.getSharedPreferences("settings", 0).getBoolean("auto_reconnect", true)
-        set(v) { ctx.getSharedPreferences("settings", 0).edit().putBoolean("auto_reconnect", v).apply() }
+        get() = settingsPrefs.getBoolean("auto_reconnect", true)
+        set(v) { settingsPrefs.edit().putBoolean("auto_reconnect", v).apply() }
+    var fileLoggingEnabled: Boolean
+        get() = settingsPrefs.getBoolean("file_logging", true)
+        set(v) {
+            settingsPrefs.edit().putBoolean("file_logging", v).apply()
+            com.vpnauto.manager.service.FileLogger.fileWriteEnabled = v
+        }
+    var autoConnectOnLaunch: Boolean
+        get() = settingsPrefs.getBoolean("auto_connect_on_launch", false)
+        set(v) { settingsPrefs.edit().putBoolean("auto_connect_on_launch", v).apply() }
 
     private val vpnStatusListener: (Boolean, String) -> Unit = { connected, message ->
         _vpnMessage.postValue(message)
@@ -136,6 +147,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             _hotspotAddress.value = DirectVpnService.hotspotProxyAddress
         }
         if (NetworkRules.isEnabled()) registerNetworkRules()
+
+        // Авто-подключение при запуске
+        if (autoConnectOnLaunch && !DirectVpnService.isRunning && !DirectVpnService.isConnecting) {
+            val best = _bestServer.value
+            if (best != null) connectToServer(best)
+        }
     }
 
     override fun onCleared() {

@@ -53,7 +53,7 @@ class VpnTile : TileService() {
             }
             else -> {
                 tile.state = Tile.STATE_INACTIVE
-                tile.label = "VPN Auto"
+                tile.label = "VPN Guard"
                 tile.contentDescription = "VPN отключён"
                 tile.icon = Icon.createWithResource(this, R.drawable.ic_vpn)
             }

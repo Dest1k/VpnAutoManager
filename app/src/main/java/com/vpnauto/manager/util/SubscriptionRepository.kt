@@ -175,7 +175,7 @@ class SubscriptionRepository(private val context: Context) {
                     val response = httpClient.newCall(
                         Request.Builder()
                             .url(url)
-                            .header("User-Agent", "Mozilla/5.0 VpnAutoManager/1.0")
+                            .header("User-Agent", "Mozilla/5.0 VpnGuard/1.0")
                             .header("Accept", "text/plain, */*")
                             .build()
                     ).execute()
@@ -207,8 +207,6 @@ class SubscriptionRepository(private val context: Context) {
                         url         = url,
                         mirrorUrls  = urls
                     ))
-                    // Сохранить рабочее зеркало как основной URL
-                    if (url != sub.url) updateSubscription(sub.copy(url = url))
                     return@withContext Result.success(servers)
 
                 } catch (e: Exception) {

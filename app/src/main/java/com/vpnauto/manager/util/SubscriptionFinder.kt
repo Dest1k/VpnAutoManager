@@ -177,7 +177,7 @@ object SubscriptionFinder {
                 val resp = httpClient.newCall(
                     Request.Builder()
                         .url(url)
-                        .header("User-Agent", "Mozilla/5.0 VpnAutoManager/1.0")
+                        .header("User-Agent", "Mozilla/5.0 VpnGuard/1.0")
                         .build()
                 ).execute()
 
@@ -212,7 +212,7 @@ object SubscriptionFinder {
                 val resp = httpClient.newCall(
                     Request.Builder()
                         .url(source.url)
-                        .header("User-Agent", "Mozilla/5.0 VpnAutoManager/1.0")
+                        .header("User-Agent", "Mozilla/5.0 VpnGuard/1.0")
                         .build()
                 ).execute()
                 val body = resp.body?.string()?.trim() ?: return@withContext emptyList()

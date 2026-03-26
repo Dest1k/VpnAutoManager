@@ -25,7 +25,7 @@ class UpdateService : Service() {
         createChannel()
         val notif = NotificationCompat.Builder(this, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_vpn)
-            .setContentTitle("VPN Auto")
+            .setContentTitle("VPN Guard")
             .setContentText("Автообновление активно")
             .setPriority(NotificationCompat.PRIORITY_MIN)
             .setOngoing(true)
@@ -40,7 +40,7 @@ class UpdateService : Service() {
 
     private fun createChannel() {
         val channel = NotificationChannel(
-            CHANNEL_ID, "VPN Auto сервис",
+            CHANNEL_ID, "VPN Guard сервис",
             NotificationManager.IMPORTANCE_MIN
         ).apply { setShowBadge(false) }
         (getSystemService(NOTIFICATION_SERVICE) as NotificationManager)
