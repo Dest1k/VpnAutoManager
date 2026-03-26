@@ -118,13 +118,17 @@ class Tun2socksManager(private val context: Context) {
     }
 
     fun stop() {
-        process?.let {
-            it.destroy()
-            runCatching { it.waitFor(2, TimeUnit.SECONDS) }
-            FileLogger.log("tun2socks остановлен")
-            ConnectionLog.i("tun2socks остановлен")
-        }
+        val p = process ?: return
         process = null
+        p.destroy()
+        try {
+            if (!p.waitFor(2, TimeUnit.SECONDS)) {
+                p.destroyForcibly()
+                p.waitFor(1, TimeUnit.SECONDS)
+            }
+        } catch (_: InterruptedException) {}
+        FileLogger.log("tun2socks остановлен")
+        ConnectionLog.i("tun2socks остановлен")
     }
 
     fun isRunning(): Boolean = process?.isAlive == true
