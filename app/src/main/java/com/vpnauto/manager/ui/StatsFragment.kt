@@ -48,6 +48,7 @@ class StatsFragment : Fragment() {
             historyAdapter.submitList(emptyList())
         }
         b.btnSpeedTest.setOnClickListener { runSpeedTest() }
+        b.btnStopSpeedTest.setOnClickListener { stopSpeedTest() }
 
         // Трафик
         vm.trafficStats.observe(viewLifecycleOwner) { snap ->
@@ -95,22 +96,37 @@ class StatsFragment : Fragment() {
         }
         speedTestJob?.cancel()
         b.btnSpeedTest.isEnabled = false
+        b.btnStopSpeedTest.visibility = View.VISIBLE
         b.tvSpeedTestResult.text = "⏳ Запускаем тест..."
         speedTestJob = viewLifecycleOwner.lifecycleScope.launch {
-            val result = SpeedTest.run { msg ->
-                b.tvSpeedTestResult.text = "⏳ $msg"
-            }
-            b.btnSpeedTest.isEnabled = true
-            if (result == null) {
-                b.tvSpeedTestResult.text = "⚠️ Подключитесь к VPN перед тестом"
-                return@launch
-            }
-            b.tvSpeedTestResult.text = buildString {
-                appendLine("📥 Загрузка: ${String.format("%.1f", result.downloadMbps)} Мбит/с")
-                appendLine("📤 Отдача:   ${String.format("%.1f", result.uploadMbps)} Мбит/с")
-                append("📡 Пинг:     ${result.pingMs} мс")
+            try {
+                val result = SpeedTest.run { msg ->
+                    b.tvSpeedTestResult.text = "⏳ $msg"
+                }
+                if (result == null) {
+                    b.tvSpeedTestResult.text = "⚠️ Подключитесь к VPN перед тестом"
+                    return@launch
+                }
+                b.tvSpeedTestResult.text = buildString {
+                    appendLine("📥 Загрузка: ${String.format("%.1f", result.downloadMbps)} Мбит/с")
+                    appendLine("📤 Отдача:   ${String.format("%.1f", result.uploadMbps)} Мбит/с")
+                    append("📡 Пинг:     ${result.pingMs} мс")
+                }
+            } catch (_: kotlinx.coroutines.CancellationException) {
+                // обработано в stopSpeedTest()
+            } finally {
+                b.btnSpeedTest.isEnabled = true
+                b.btnStopSpeedTest.visibility = View.GONE
             }
         }
+    }
+
+    private fun stopSpeedTest() {
+        speedTestJob?.cancel()
+        speedTestJob = null
+        b.btnSpeedTest.isEnabled = true
+        b.btnStopSpeedTest.visibility = View.GONE
+        b.tvSpeedTestResult.text = "Тест остановлен"
     }
 
     private fun loadHistory() {

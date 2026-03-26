@@ -381,6 +381,17 @@
                             android:gravity="center_vertical"/>
 
                         <com.google.android.material.button.MaterialButton
+                            android:id="@+id/btnPingAllSubs"
+                            style="@style/Widget.Material3.Button.OutlinedButton"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginEnd="4dp"
+                            android:text="📡 Пинг"
+                            android:textSize="12sp"
+                            android:paddingStart="10dp"
+                            android:paddingEnd="10dp"/>
+
+                        <com.google.android.material.button.MaterialButton
                             android:id="@+id/btnImportAllToV2Ray"
                             style="@style/Widget.Material3.Button.OutlinedButton"
                             android:layout_width="wrap_content"

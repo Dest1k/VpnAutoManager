@@ -103,6 +103,15 @@
                         android:id="@+id/btnSpeedTest"
                         android:layout_width="wrap_content" android:layout_height="wrap_content"
                         android:text="Запустить" android:textSize="12sp" app:backgroundTint="@color/primary"/>
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/btnStopSpeedTest"
+                        style="@style/Widget.Material3.Button.OutlinedButton"
+                        android:layout_width="wrap_content" android:layout_height="wrap_content"
+                        android:layout_marginStart="6dp"
+                        android:text="Стоп" android:textSize="12sp"
+                        android:visibility="gone"
+                        app:strokeColor="@color/ping_bad"
+                        android:textColor="@color/ping_bad"/>
                 </LinearLayout>
                 <TextView android:id="@+id/tvSpeedTestResult"
                     android:layout_width="match_parent" android:layout_height="wrap_content"

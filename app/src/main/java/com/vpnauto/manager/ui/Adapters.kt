@@ -82,17 +82,24 @@ class ServerAdapter(
 
 class SubscriptionAdapter(
     private val onToggle: (Subscription, Boolean) -> Unit,
-    private val onImport: (Subscription) -> Unit
+    private val onImport: (Subscription) -> Unit,
+    private val onPing: (Subscription, ViewHolder) -> Unit = { _, _ -> }
 ) : ListAdapter<Subscription, SubscriptionAdapter.ViewHolder>(SubDiffCallback) {
+
+    // Хранит последние результаты пинга по id подписки
+    private val pingResults = mutableMapOf<String, String>()
 
     inner class ViewHolder(view: View) : RecyclerView.ViewHolder(view) {
         val tvName: TextView = view.findViewById(R.id.tvSubName)
         val tvUrl: TextView = view.findViewById(R.id.tvSubUrl)
         val tvCount: TextView = view.findViewById(R.id.tvSubCount)
         val tvLastUpdate: TextView = view.findViewById(R.id.tvSubLastUpdate)
+        val tvPingResult: TextView = view.findViewById(R.id.tvSubPingResult)
         val toggle: com.google.android.material.switchmaterial.SwitchMaterial =
             view.findViewById(R.id.switchSubEnabled)
         val btnImport: android.widget.Button = view.findViewById(R.id.btnSubImport)
+        val btnPing: com.google.android.material.button.MaterialButton =
+            view.findViewById(R.id.btnSubPing)
     }
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ViewHolder {
@@ -114,6 +121,21 @@ class SubscriptionAdapter(
         holder.toggle.isChecked = sub.isEnabled
         holder.toggle.setOnCheckedChangeListener { _, checked -> onToggle(sub, checked) }
         holder.btnImport.setOnClickListener { onImport(sub) }
+        holder.btnPing.setOnClickListener { onPing(sub, holder) }
+
+        val result = pingResults[sub.id]
+        if (result != null) {
+            holder.tvPingResult.visibility = View.VISIBLE
+            holder.tvPingResult.text = result
+        } else {
+            holder.tvPingResult.visibility = View.GONE
+        }
+    }
+
+    fun setPingResult(subId: String, result: String) {
+        pingResults[subId] = result
+        val pos = currentList.indexOfFirst { it.id == subId }
+        if (pos >= 0) notifyItemChanged(pos)
     }
 
     companion object SubDiffCallback : DiffUtil.ItemCallback<Subscription>() {
