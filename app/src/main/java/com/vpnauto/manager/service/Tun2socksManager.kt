@@ -74,7 +74,7 @@ class Tun2socksManager(private val context: Context) {
                         binary.absolutePath,
                         "-device",   "fd://0",
                         "-proxy",    "socks5://127.0.0.1:$socksPort",
-                        "-loglevel", "debug"
+                        "-loglevel", "warning"
                     )
                         .redirectInput(ProcessBuilder.Redirect.INHERIT)
                         .redirectErrorStream(true)
@@ -90,7 +90,7 @@ class Tun2socksManager(private val context: Context) {
             Thread {
                 try {
                     process?.inputStream?.bufferedReader()?.forEachLine { line ->
-                        if (line.isNotBlank()) {
+                        if (line.isNotBlank() && !isBenignTcpNoise(line)) {
                             FileLogger.log("t2s: $line")
                             ConnectionLog.i("tun2socks: $line")
                         }
@@ -132,6 +132,16 @@ class Tun2socksManager(private val context: Context) {
     }
 
     fun isRunning(): Boolean = process?.isAlive == true
+
+    /**
+     * Возвращает true для строк, которые являются нормальным сетевым событием,
+     * а не реальной ошибкой. Это предотвращает засорение лога при debug-уровне.
+     */
+    private fun isBenignTcpNoise(line: String): Boolean =
+        line.contains("connection reset by peer") ||
+        line.contains("broken pipe") ||
+        line.contains("use of closed network connection") ||
+        line.contains("EOF")
 
     private fun listNativeLibs() {
         val dir = File(context.applicationInfo.nativeLibraryDir)
