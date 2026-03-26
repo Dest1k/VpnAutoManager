@@ -123,6 +123,8 @@ class XrayManager(private val context: Context) {
 
     fun start(config: String): Boolean {
         stop()
+        // Ждём пока порт 10808 освободится (race-condition после stop/onDestroy)
+        waitForPortFree(10808)
         if (!nativeXray.exists()) {
             ConnectionLog.e("start(): xray не найден: ${nativeXray.absolutePath}")
             return false
@@ -169,12 +171,37 @@ class XrayManager(private val context: Context) {
     }
 
     fun stop() {
-        xrayProcess?.let {
-            it.destroy()
-            runCatching { it.waitFor(3, TimeUnit.SECONDS) }
-            ConnectionLog.i("xray остановлен")
-        }
+        val p = xrayProcess ?: return
         xrayProcess = null
+        p.destroy()
+        try {
+            if (!p.waitFor(2, TimeUnit.SECONDS)) {
+                // Не умер за 2 секунды — SIGKILL
+                p.destroyForcibly()
+                p.waitFor(1, TimeUnit.SECONDS)
+            }
+        } catch (_: InterruptedException) {}
+        ConnectionLog.i("xray остановлен")
+    }
+
+    /**
+     * Ждёт освобождения порта на 127.0.0.1.
+     * Нужно после stop() — ядро асинхронно закрывает сокеты умершего процесса.
+     */
+    private fun waitForPortFree(port: Int, timeoutMs: Long = 2000) {
+        val deadline = System.currentTimeMillis() + timeoutMs
+        while (System.currentTimeMillis() < deadline) {
+            try {
+                java.net.ServerSocket().use {
+                    it.reuseAddress = false
+                    it.bind(java.net.InetSocketAddress("127.0.0.1", port))
+                }
+                return  // Порт свободен
+            } catch (_: Exception) {
+                Thread.sleep(100)
+            }
+        }
+        ConnectionLog.w("Порт $port не освободился за ${timeoutMs}мс — запускаем xray всё равно")
     }
 
     fun isRunning(): Boolean = xrayProcess?.isAlive == true
