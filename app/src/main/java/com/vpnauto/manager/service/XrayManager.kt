@@ -188,7 +188,7 @@ class XrayManager(private val context: Context) {
      * Ждёт освобождения порта на 127.0.0.1.
      * Нужно после stop() — ядро асинхронно закрывает сокеты умершего процесса.
      */
-    private fun waitForPortFree(port: Int, timeoutMs: Long = 2000) {
+    private fun waitForPortFree(port: Int, timeoutMs: Long = 4000) {
         val deadline = System.currentTimeMillis() + timeoutMs
         while (System.currentTimeMillis() < deadline) {
             try {
