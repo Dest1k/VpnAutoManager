@@ -262,7 +262,13 @@ class DirectVpnService : VpnService() {
             // Без этого xray's direct outbound (DNS, прямые соединения) попадают обратно в TUN,
             // создавая бесконечную петлю: xray→TUN→tun2socks→xray→TUN→...
             // VPN-сервер доступен напрямую через реальный сетевой интерфейс.
-            runCatching { b.addDisallowedApplication(packageName) }
+            try {
+                b.addDisallowedApplication(packageName)
+                FileLogger.log("TUN: app excluded from VPN (no loop): $packageName")
+            } catch (e: Exception) {
+                FileLogger.log("TUN WARNING: addDisallowedApplication failed: ${e.message} — xray direct outbound may loop!")
+                ConnectionLog.w("⚠️ Не удалось исключить приложение из VPN: ${e.message}")
+            }
 
             if (SplitTunneling.isEnabled()) {
                 SplitTunneling.getBypassPackages().forEach { pkg ->
