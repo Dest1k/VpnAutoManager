@@ -207,8 +207,16 @@ class DirectVpnService : VpnService() {
             delay(2500) // даём tun2socks и xray время инициализировать маршруты
             if (!isRunning) return@launch
             try {
+                // Тестируем через SOCKS5-порт xray, а не напрямую.
+                // Сервис исключён из VPN через addDisallowedApplication, поэтому
+                // openConnection() без прокси идёт напрямую в интернет — мимо тоннеля.
+                // С явным SOCKS5-прокси запрос проходит: Service → xray SOCKS5 → VLESS → интернет.
+                val socksProxy = java.net.Proxy(
+                    java.net.Proxy.Type.SOCKS,
+                    java.net.InetSocketAddress("127.0.0.1", socksPort)
+                )
                 val url = java.net.URL("https://connectivitycheck.gstatic.com/generate_204")
-                val conn = url.openConnection() as java.net.HttpURLConnection
+                val conn = url.openConnection(socksProxy) as java.net.HttpURLConnection
                 conn.connectTimeout = 6000
                 conn.readTimeout    = 6000
                 conn.requestMethod  = "HEAD"
