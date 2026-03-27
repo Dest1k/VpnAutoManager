@@ -328,7 +328,9 @@ object XrayConfigBuilder {
             when (net) {
                 "ws"   -> put("wsSettings", JSONObject().apply {
                     put("path", p["path"] ?: "/")
-                    put("headers", JSONObject().apply { put("Host", p["host"] ?: "") })
+                    // "host" in "headers" deprecated since xray v1.8 → use top-level "host"
+                    val wsHost = p["host"] ?: ""
+                    if (wsHost.isNotEmpty()) put("host", wsHost)
                 })
                 "grpc" -> put("grpcSettings", JSONObject().apply {
                     put("serviceName", p["serviceName"] ?: p["path"] ?: "")

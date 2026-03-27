@@ -152,23 +152,30 @@ class DirectVpnService : VpnService() {
 
         // 3. Запустить xray
         log("Шаг 2/4: запуск xray…")
+
+        // Находим свободный SOCKS5-порт ДО сборки конфига.
+        // stop() использует SIGKILL → нет TIME_WAIT → порт свободен сразу после kill.
+        // findFreePort() стартует с 10808 и ищет свободный, чтобы не конфликтовать
+        // с возможными orphan-процессами от предыдущих сессий.
+        val socksPort = withContext(Dispatchers.IO) { xrayManager.findFreePort() }
+
         val config = try {
-            XrayConfigBuilder.build(server)
+            XrayConfigBuilder.build(server, socksPort)
         } catch (e: Exception) {
             FileLogger.logThrowable("XrayConfigBuilder", e)
             throw Exception("Ошибка конфига: ${e.message}")
         }
         FileLogger.log("xray config (first 400):\n${config.take(400)}")
-        ConnectionLog.i("Конфиг: ${config.length} байт")
+        ConnectionLog.i("Конфиг: ${config.length} байт, порт $socksPort")
 
         val xrayStarted = withContext(Dispatchers.IO) { xrayManager.start(config) }
         if (!xrayStarted) throw Exception("xray не запустился")
         ConnectionLog.ok("xray запущен")
 
         // 4. Ждём SOCKS5
-        log("Шаг 3/4: ждём SOCKS5 порт 10808…")
-        val portReady = waitForSocksPort(10808, attempts = 25, intervalMs = 400)
-        if (!portReady) throw Exception("SOCKS5 порт 10808 не открылся. Проверьте конфиг сервера.")
+        log("Шаг 3/4: ждём SOCKS5 порт $socksPort…")
+        val portReady = waitForSocksPort(socksPort, attempts = 25, intervalMs = 400)
+        if (!portReady) throw Exception("SOCKS5 порт $socksPort не открылся. Проверьте конфиг сервера.")
         ConnectionLog.ok("SOCKS5 готов")
 
         // 5. Создать TUN
@@ -182,7 +189,7 @@ class DirectVpnService : VpnService() {
 
         // 6. Запустить tun2socks
         log("Запуск tun2socks…")
-        val t2sOk = withContext(Dispatchers.IO) { tun2socks.start(pfd, 10808) }
+        val t2sOk = withContext(Dispatchers.IO) { tun2socks.start(pfd, socksPort) }
         if (!t2sOk) {
             throw Exception("tun2socks не запустился — проверьте права TUN-устройства")
         }

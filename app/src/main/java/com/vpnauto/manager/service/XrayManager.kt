@@ -122,16 +122,13 @@ class XrayManager(private val context: Context) {
     }
 
     fun start(config: String): Boolean {
-        stop()
-        // Ждём пока порт 10808 освободится (race-condition после stop/onDestroy)
-        waitForPortFree(10808)
+        stop()  // SIGKILL — порт освобождается мгновенно (см. stop())
         if (!nativeXray.exists()) {
             ConnectionLog.e("start(): xray не найден: ${nativeXray.absolutePath}")
             return false
         }
         return try {
             configFile.writeText(config)
-            // Логируем первые 300 символов конфига для диагностики
             ConnectionLog.i("Конфиг (начало): ${config.take(300)}")
             ConnectionLog.i("Запускаем: ${nativeXray.absolutePath}")
             xrayProcess = ProcessBuilder(
@@ -154,9 +151,7 @@ class XrayManager(private val context: Context) {
                             ConnectionLog.add("xray: $line", level)
                         }
                     }
-                } catch (_: Exception) {
-                    // process.destroy() закрывает поток — InterruptedIOException ожидаем
-                }
+                } catch (_: Exception) { }
             }.apply { isDaemon = true; start() }
 
             Thread.sleep(700)
@@ -173,35 +168,63 @@ class XrayManager(private val context: Context) {
     fun stop() {
         val p = xrayProcess ?: return
         xrayProcess = null
-        p.destroy()
-        try {
-            if (!p.waitFor(2, TimeUnit.SECONDS)) {
-                // Не умер за 2 секунды — SIGKILL
-                p.destroyForcibly()
-                p.waitFor(1, TimeUnit.SECONDS)
-            }
-        } catch (_: InterruptedException) {}
+        // SIGKILL сразу — не SIGTERM.
+        // SIGTERM → graceful close → TCP FIN handshake → TIME_WAIT на порту 10808 (до 60с).
+        // SIGKILL → ядро RST все соединения → TIME_WAIT не создаётся → порт свободен мгновенно.
+        p.destroyForcibly()
+        try { p.waitFor(1, TimeUnit.SECONDS) } catch (_: InterruptedException) {}
+        killOrphans()
         ConnectionLog.i("xray остановлен")
     }
 
     /**
-     * Ждёт освобождения порта на 127.0.0.1.
-     * Нужно после stop() — ядро асинхронно закрывает сокеты умершего процесса.
+     * Убивает все оставшиеся процессы xray (orphan после краша сервиса или быстрого переключения).
+     * Без этого orphan держит порт 10808 и новый xray не может стартовать.
      */
-    private fun waitForPortFree(port: Int, timeoutMs: Long = 4000) {
-        val deadline = System.currentTimeMillis() + timeoutMs
-        while (System.currentTimeMillis() < deadline) {
+    private fun killOrphans() {
+        val killed = mutableListOf<Int>()
+        runCatching {
+            File("/proc").listFiles { f -> f.name.matches(Regex("\\d+")) }
+                ?.forEach { pidDir ->
+                    runCatching {
+                        val cmdline = File(pidDir, "cmdline").readText()
+                        if (nativeXray.name in cmdline) {
+                            val pid = pidDir.name.toInt()
+                            if (pid != android.os.Process.myPid()) {
+                                android.os.Process.killProcess(pid)
+                                killed += pid
+                            }
+                        }
+                    }
+                }
+        }
+        if (killed.isNotEmpty()) {
+            FileLogger.log("xray orphans killed: pids=$killed")
+            Thread.sleep(150)  // минимальная пауза — ядро завершает освобождение сокетов
+        }
+    }
+
+    /**
+     * Находит свободный порт для SOCKS5.
+     * Начинает с preferred (10808) и пробует до preferred+20.
+     * Используется ПЕРЕД сборкой конфига, чтобы порт был гарантированно свободен.
+     */
+    fun findFreePort(preferred: Int = 10808): Int {
+        for (port in preferred..(preferred + 20)) {
             try {
                 java.net.ServerSocket().use {
                     it.reuseAddress = false
                     it.bind(java.net.InetSocketAddress("127.0.0.1", port))
+                    FileLogger.log("SOCKS5 free port: $port")
+                    return port
                 }
-                return  // Порт свободен
-            } catch (_: Exception) {
-                Thread.sleep(100)
-            }
+            } catch (_: Exception) {}
         }
-        ConnectionLog.w("Порт $port не освободился за ${timeoutMs}мс — запускаем xray всё равно")
+        // Fallback: попросим ОС выдать любой свободный порт
+        return java.net.ServerSocket(0).use {
+            FileLogger.log("SOCKS5 fallback port: ${it.localPort}")
+            it.localPort
+        }
     }
 
     fun isRunning(): Boolean = xrayProcess?.isAlive == true

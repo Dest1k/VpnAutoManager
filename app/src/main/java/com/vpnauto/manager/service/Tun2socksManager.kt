@@ -120,15 +120,31 @@ class Tun2socksManager(private val context: Context) {
     fun stop() {
         val p = process ?: return
         process = null
-        p.destroy()
-        try {
-            if (!p.waitFor(2, TimeUnit.SECONDS)) {
-                p.destroyForcibly()
-                p.waitFor(1, TimeUnit.SECONDS)
-            }
-        } catch (_: InterruptedException) {}
+        // SIGKILL сразу — tun2socks держит TCP-соединения к xray.
+        // SIGTERM создаёт TIME_WAIT сокеты, которые мешают xray переиспользовать порт.
+        p.destroyForcibly()
+        try { p.waitFor(1, TimeUnit.SECONDS) } catch (_: InterruptedException) {}
+        killOrphans()
         FileLogger.log("tun2socks остановлен")
         ConnectionLog.i("tun2socks остановлен")
+    }
+
+    private fun killOrphans() {
+        runCatching {
+            File("/proc").listFiles { f -> f.name.matches(Regex("\\d+")) }
+                ?.forEach { pidDir ->
+                    runCatching {
+                        val cmdline = File(pidDir, "cmdline").readText()
+                        if (binary.name in cmdline) {
+                            val pid = pidDir.name.toInt()
+                            if (pid != android.os.Process.myPid()) {
+                                android.os.Process.killProcess(pid)
+                                FileLogger.log("tun2socks orphan killed: pid=$pid")
+                            }
+                        }
+                    }
+                }
+        }
     }
 
     fun isRunning(): Boolean = process?.isAlive == true
