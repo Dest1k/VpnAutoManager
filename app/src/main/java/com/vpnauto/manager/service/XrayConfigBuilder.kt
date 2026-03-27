@@ -130,6 +130,19 @@ object XrayConfigBuilder {
                     put("outboundTag", "direct")
                     put("ip", JSONArray().apply { put("127.0.0.0/8"); put("::1/128") })
                 })
+
+                // 6. Весь остальной UDP → direct.
+                //    VLESS/VMess с XTLS-vision НЕ поддерживают UDP-relay.
+                //    Если игровой UDP (порты 3478, 27015 и т.д.) попадает в proxy-outbound,
+                //    xray молча теряет пакеты и со временем зависает → рушит весь тоннель.
+                //    freedom-outbound безопасен: xray исключён из TUN через
+                //    addDisallowedApplication, поэтому петля невозможна.
+                //    Telegram UDP уже перехвачен правилом 1 (IP-диапазоны), сюда не доходит.
+                put(JSONObject().apply {
+                    put("type", "field")
+                    put("network", "udp")
+                    put("outboundTag", "direct")
+                })
             })
         })
 
