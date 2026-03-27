@@ -103,15 +103,16 @@ object XrayConfigBuilder {
                     })
                 })
 
-                // 3. UDP/443 (QUIC/HTTP3) → direct.
-                //    blackhole молча дропает пакеты → браузер получает ERR_QUIC_PROTOCOL_ERROR
-                //    вместо быстрого fallback на TCP/TLS. direct позволяет QUIC работать
-                //    нативно; браузеры сами откажутся от него, если ISP заблокирует UDP.
+                // 3. UDP/443 (QUIC/HTTP3) → block.
+                //    tun2socks пересылает UDP в xray через SOCKS5 UDP ASSOCIATE.
+                //    "direct" создаёт петлю если addDisallowedApplication не сработал.
+                //    "block" (blackhole) молча дропает пакет — петель нет.
+                //    Chrome видит таймаут QUIC и откатывается на TCP/TLS автоматически.
                 put(JSONObject().apply {
                     put("type", "field")
                     put("network", "udp")
                     put("port", "443")
-                    put("outboundTag", "direct")
+                    put("outboundTag", "block")
                 })
 
                 // 4. DNS (UDP+TCP порт 53) — напрямую, без тоннеля.
