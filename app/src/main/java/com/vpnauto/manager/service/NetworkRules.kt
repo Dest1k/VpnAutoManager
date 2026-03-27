@@ -23,9 +23,8 @@ data class NetworkRule(
 
 object NetworkRules {
     private var _prefs: SharedPreferences? = null
-    private val prefs get() = _prefs!!
     private val gson = Gson()
-    private var networkCallback: ConnectivityManager.NetworkCallback? = null
+    @Volatile private var networkCallback: ConnectivityManager.NetworkCallback? = null
 
     private val DEFAULTS = listOf(
         NetworkRule("default_mobile", "📱 Мобильная сеть → VPN",
@@ -40,7 +39,7 @@ object NetworkRules {
     }
 
     fun getRules(): List<NetworkRule> {
-        val json = prefs.getString("rules", null) ?: return DEFAULTS
+        val json = _prefs?.getString("rules", null) ?: return DEFAULTS
         return try {
             val type = object : TypeToken<List<NetworkRule>>() {}.type
             gson.fromJson(json, type)
@@ -48,10 +47,10 @@ object NetworkRules {
     }
 
     fun saveRules(rules: List<NetworkRule>) =
-        prefs.edit().putString("rules", gson.toJson(rules)).apply()
+        _prefs?.edit()?.putString("rules", gson.toJson(rules))?.apply()
 
-    fun isEnabled(): Boolean = prefs.getBoolean("enabled", false)
-    fun setEnabled(v: Boolean) = prefs.edit().putBoolean("enabled", v).apply()
+    fun isEnabled(): Boolean = _prefs?.getBoolean("enabled", false) ?: false
+    fun setEnabled(v: Boolean) { _prefs?.edit()?.putBoolean("enabled", v)?.apply() }
 
     fun getCurrentAction(context: Context): NetworkRule? {
         if (!isEnabled()) return null

@@ -62,7 +62,11 @@ class LocalProxyServer(
         Log.d(TAG, "Proxy stopped")
     }
 
-    val isRunning: Boolean get() = serverSocket?.isBound == true && !serverSocket!!.isClosed
+    val isRunning: Boolean
+        get() {
+            val ss = serverSocket ?: return false
+            return ss.isBound && !ss.isClosed
+        }
 
     // ─── Обработка клиентского подключения ───────────────────────
     private suspend fun handleClient(client: Socket) = withContext(Dispatchers.IO) {
@@ -74,7 +78,7 @@ class LocalProxyServer(
             // Определяем протокол: SOCKS5 (0x05) или HTTP
             val firstByte = clientIn.read()
             when (firstByte) {
-                0x05 -> handleSocks5(client, clientIn, clientOut, alreadyRead = firstByte)
+                0x05 -> handleSocks5(client, clientIn, clientOut)
                 in 'A'.code..'Z'.code,
                 in 'a'.code..'z'.code -> handleHttp(client, clientIn, clientOut, firstByte.toChar())
                 else -> { Log.w(TAG, "Unknown protocol byte: $firstByte") }
@@ -88,8 +92,7 @@ class LocalProxyServer(
 
     // ─── SOCKS5 → пересылаем upstream SOCKS5 ─────────────────────
     private fun handleSocks5(
-        client: Socket, clientIn: InputStream, clientOut: OutputStream,
-        alreadyRead: Int
+        client: Socket, clientIn: InputStream, clientOut: OutputStream
     ) {
         // Читаем приветствие клиента
         val nMethods = clientIn.read()

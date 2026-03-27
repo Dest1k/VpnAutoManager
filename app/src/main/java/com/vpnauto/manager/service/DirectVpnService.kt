@@ -50,6 +50,8 @@ class DirectVpnService : VpnService() {
         @Volatile var connectedServer  = ""
         @Volatile var hotspotProxyActive  = false
         @Volatile var hotspotProxyAddress = ""
+        /** Актуальный порт xray SOCKS5. Устанавливается при подключении, нужен Watchdog и hotspot-прокси. */
+        @Volatile var socksPort: Int = 10808
 
         fun buildConnectIntent(ctx: Context, s: ServerConfig) =
             Intent(ctx, DirectVpnService::class.java).apply {
@@ -158,6 +160,7 @@ class DirectVpnService : VpnService() {
         // findFreePort() стартует с 10808 и ищет свободный, чтобы не конфликтовать
         // с возможными orphan-процессами от предыдущих сессий.
         val socksPort = withContext(Dispatchers.IO) { xrayManager.findFreePort() }
+        DirectVpnService.socksPort = socksPort   // сохраняем для Watchdog и hotspot-прокси
 
         val config = try {
             XrayConfigBuilder.build(server, socksPort)
@@ -413,7 +416,7 @@ class DirectVpnService : VpnService() {
             broadcastHotspotStatus(false, "Точка доступа не найдена"); return
         }
         stopHotspotProxy()
-        LocalProxyServer(ip, LocalProxyServer.PROXY_PORT, "127.0.0.1", Socks5Client.PROXY_PORT)
+        LocalProxyServer(ip, LocalProxyServer.PROXY_PORT, "127.0.0.1", DirectVpnService.socksPort)
             .also { it.start(); hotspotProxy = it }
         hotspotProxyActive    = true
         hotspotProxyAddress   = "$ip:${LocalProxyServer.PROXY_PORT}"

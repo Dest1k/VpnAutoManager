@@ -46,5 +46,6 @@ object ConnectionLog {
         _entries.postValue(emptyList())
     }
 
+    @Synchronized
     fun getText(): String = list.joinToString("\n") { "[${it.time}] ${it.level.name}: ${it.message}" }
 }
