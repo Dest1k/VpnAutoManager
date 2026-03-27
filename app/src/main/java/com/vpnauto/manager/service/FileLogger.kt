@@ -35,7 +35,8 @@ object FileLogger {
         log("=== VPN Guard log file=${logFile?.absolutePath} enabled=$fileWriteEnabled ===")
     }
 
-    /** Записать строку в файл + Android logcat */
+    /** Записать строку в файл + Android logcat. Синхронизирован — несколько потоков не перемешают строки. */
+    @Synchronized
     fun log(msg: String) {
         android.util.Log.d("VpnFileLog", msg)
         if (!fileWriteEnabled) return
@@ -43,7 +44,8 @@ object FileLogger {
         try { logFile?.appendText(line) } catch (_: Exception) {}
     }
 
-    /** Записать исключение со стектрейсом */
+    /** Записать исключение со стектрейсом (атомарно — стек не разрывается другими потоками). */
+    @Synchronized
     fun logThrowable(tag: String, t: Throwable) {
         log("$tag CRASH: ${t.javaClass.name}: ${t.message}")
         t.stackTrace.take(20).forEach { log("   at $it") }

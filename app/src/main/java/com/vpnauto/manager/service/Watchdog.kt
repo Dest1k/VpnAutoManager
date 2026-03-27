@@ -17,12 +17,11 @@ class Watchdog(
 ) {
     private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
     private var job: Job? = null
-    private var failCount = 0
+    @Volatile private var failCount = 0
 
     companion object {
         private const val CHECK_INTERVAL_MS = 30_000L
         private const val MAX_FAILURES = 3
-        private const val SOCKS_PORT = 10808
         private const val PROBE_TIMEOUT_MS = 3000
     }
 
@@ -64,8 +63,9 @@ class Watchdog(
 
     private fun probeProxy(): Long {
         return try {
+            val port = DirectVpnService.socksPort   // актуальный порт xray (может быть 10808+N)
             val start = System.currentTimeMillis()
-            Socket().use { it.connect(InetSocketAddress("127.0.0.1", SOCKS_PORT), PROBE_TIMEOUT_MS) }
+            Socket().use { it.connect(InetSocketAddress("127.0.0.1", port), PROBE_TIMEOUT_MS) }
             System.currentTimeMillis() - start
         } catch (_: Exception) { -1L }
     }
