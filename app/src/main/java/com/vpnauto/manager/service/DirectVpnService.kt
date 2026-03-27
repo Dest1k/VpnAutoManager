@@ -193,6 +193,32 @@ class DirectVpnService : VpnService() {
         startForeground(NOTIF_VPN, buildNotification("✅ ${server.name}", buildDisconnectPi()))
         FileLogger.log("=== VPN CONNECTED: ${server.name} ===")
         ConnectionLog.ok("═══ VPN подключён: ${server.name} ═══")
+
+        // Проверяем что трафик реально идёт через прокси (сервер не просто принимает
+        // подключение, но и возвращает данные). Делаем это асинхронно — не блокируем старт.
+        scope.launch(Dispatchers.IO) {
+            delay(2500) // даём tun2socks и xray время инициализировать маршруты
+            if (!isRunning) return@launch
+            try {
+                val url = java.net.URL("https://connectivitycheck.gstatic.com/generate_204")
+                val conn = url.openConnection() as java.net.HttpURLConnection
+                conn.connectTimeout = 6000
+                conn.readTimeout    = 6000
+                conn.requestMethod  = "HEAD"
+                val code = conn.responseCode
+                conn.disconnect()
+                if (code == 204) {
+                    FileLogger.log("PROXY CHECK: OK (HTTP 204)")
+                    ConnectionLog.ok("📶 Связь через прокси подтверждена")
+                } else {
+                    FileLogger.log("PROXY CHECK: unexpected HTTP $code")
+                    ConnectionLog.w("⚠️ Прокси работает, но сервер вернул HTTP $code")
+                }
+            } catch (e: Exception) {
+                FileLogger.log("PROXY CHECK FAILED: ${e.message}")
+                ConnectionLog.w("⚠️ Трафик не проходит через прокси: ${e.message}\nВозможно сервер ${server.host} недоступен — попробуйте другой.")
+            }
+        }
     }
 
     // ─── Ожидание порта ───────────────────────────────────────────
