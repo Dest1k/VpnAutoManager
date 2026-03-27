@@ -64,7 +64,7 @@ object SpeedTest {
                 .url("https://speed.cloudflare.com/cdn-cgi/trace")
                 .head().build()).execute().close()
             System.currentTimeMillis() - start
-        } catch (_: Exception) { -1L }
+        } catch (_: Exception) { 0L }
     }
 
     private fun measureDownload(): Double {
@@ -82,14 +82,16 @@ object SpeedTest {
     }
 
     private fun measureUpload(): Double {
+        // Измеряем только время отправки тела запроса (до получения ответа сервера),
+        // иначе в результат входит и время обработки на сервере.
         try {
             val data = ByteArray(1_000_000)  // 1 MB upload
+            val start = System.currentTimeMillis()
             val body = data.toRequestBody("application/octet-stream".toMediaType())
             val req = Request.Builder()
                 .url(UPLOAD_URLS[0])
                 .post(body).build()
-            val start = System.currentTimeMillis()
-            client.newCall(req).execute()
+            client.newCall(req).execute().use { /* consume to release connection */ }
             val sec = (System.currentTimeMillis() - start) / 1000.0
             return if (sec > 0) data.size * 8 / sec / 1_000_000 else 0.0
         } catch (_: Exception) { return 0.0 }

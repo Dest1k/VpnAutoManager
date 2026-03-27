@@ -124,6 +124,17 @@ object XrayConfigBuilder {
                     put("outboundTag", "direct")
                 })
 
+                // 4b. DNS-over-TLS (порт 853) — напрямую.
+                //    Android (Private DNS) и некоторые приложения используют DoT на 853.
+                //    В логах: tcp:8.8.8.8:853 [socks-in >> proxy] — это лишние RTT
+                //    через туннель и возможный сбой если сервер блокирует TLS-in-TLS.
+                put(JSONObject().apply {
+                    put("type", "field")
+                    put("network", "tcp")
+                    put("port", "853")
+                    put("outboundTag", "direct")
+                })
+
                 // 5. Loopback → direct
                 put(JSONObject().apply {
                     put("type", "field")
@@ -175,7 +186,9 @@ object XrayConfigBuilder {
                             put(JSONObject().apply {
                                 put("id", uuid)
                                 put("encryption", "none")
-                                put("flow", params["flow"] ?: "")
+                                // flow="" вызывает предупреждение "VLESS with no Flow deprecated"
+                                val flow = params["flow"]
+                                if (!flow.isNullOrEmpty()) put("flow", flow)
                             })
                         })
                     })
@@ -256,6 +269,8 @@ object XrayConfigBuilder {
     }
 
     // ─── Hysteria2 ─────────────────────────────────────────────────
+    // Hysteria2 — QUIC-нативный протокол. xray управляет TLS/QUIC внутри outbound;
+    // streamSettings с network:tcp здесь не используются и ломают соединение.
     private fun buildHysteria2(server: ServerConfig): JSONObject {
         val params   = parseUriParams(server.raw)
         val password = server.raw.removePrefix("hysteria2://").removePrefix("hy2://")
@@ -265,21 +280,19 @@ object XrayConfigBuilder {
             put("settings", JSONObject().apply {
                 put("servers", JSONArray().apply {
                     put(JSONObject().apply {
-                        put("address", server.host); put("port", server.port); put("password", password)
+                        put("address", server.host); put("port", server.port)
+                        put("password", password)
+                        val sni = params["sni"] ?: server.host
+                        if (sni.isNotEmpty()) put("sni", sni)
+                        if (params["insecure"] == "1") put("allowInsecure", true)
                     })
-                })
-            })
-            put("streamSettings", JSONObject().apply {
-                put("network", "tcp"); put("security", "tls")
-                put("tlsSettings", JSONObject().apply {
-                    put("serverName", params["sni"] ?: server.host)
-                    put("allowInsecure", params["insecure"] == "1")
                 })
             })
         }
     }
 
     // ─── TUIC ──────────────────────────────────────────────────────
+    // TUIC — QUIC-нативный протокол. streamSettings с network:tcp здесь неприменимы.
     private fun buildTuic(server: ServerConfig): JSONObject {
         val params   = parseUriParams(server.raw)
         val userInfo = server.raw.removePrefix("tuic://").substringBefore('@')
@@ -293,14 +306,10 @@ object XrayConfigBuilder {
                         put("address", server.host); put("port", server.port)
                         put("uuid", uuid); put("password", password)
                         put("congestionControl", params["congestion_control"] ?: "bbr")
+                        val sni = params["sni"] ?: server.host
+                        if (sni.isNotEmpty()) put("sni", sni)
+                        if (params["allow_insecure"] == "1") put("allowInsecure", true)
                     })
-                })
-            })
-            put("streamSettings", JSONObject().apply {
-                put("network", "tcp"); put("security", "tls")
-                put("tlsSettings", JSONObject().apply {
-                    put("serverName", params["sni"] ?: server.host)
-                    put("allowInsecure", params["allow_insecure"] == "1")
                 })
             })
         }
