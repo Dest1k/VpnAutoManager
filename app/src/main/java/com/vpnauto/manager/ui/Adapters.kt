@@ -83,7 +83,8 @@ class ServerAdapter(
 class SubscriptionAdapter(
     private val onToggle: (Subscription, Boolean) -> Unit,
     private val onImport: (Subscription) -> Unit,
-    private val onPing: (Subscription, ViewHolder) -> Unit = { _, _ -> }
+    private val onPing: (Subscription, ViewHolder) -> Unit = { _, _ -> },
+    private val onSpeedTest: (Subscription, ViewHolder) -> Unit = { _, _ -> }
 ) : ListAdapter<Subscription, SubscriptionAdapter.ViewHolder>(SubDiffCallback) {
 
     // Хранит последние результаты пинга по id подписки
@@ -100,6 +101,8 @@ class SubscriptionAdapter(
         val btnImport: android.widget.Button = view.findViewById(R.id.btnSubImport)
         val btnPing: com.google.android.material.button.MaterialButton =
             view.findViewById(R.id.btnSubPing)
+        val btnSpeedTest: com.google.android.material.button.MaterialButton =
+            view.findViewById(R.id.btnSubSpeedTest)
     }
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ViewHolder {
@@ -122,6 +125,7 @@ class SubscriptionAdapter(
         holder.toggle.setOnCheckedChangeListener { _, checked -> onToggle(sub, checked) }
         holder.btnImport.setOnClickListener { onImport(sub) }
         holder.btnPing.setOnClickListener { onPing(sub, holder) }
+        holder.btnSpeedTest.setOnClickListener { onSpeedTest(sub, holder) }
 
         val result = pingResults[sub.id]
         if (result != null) {

@@ -33,8 +33,8 @@ object PingTester {
                     if (!isActive) return@async server
                     val ping = tcpPing(server.host, server.port)
                     val done = counter.incrementAndGet()
-                    // onProgress вызываем в IO, UI-поток подхватит через postValue
-                    onProgress?.invoke(done, total)
+                    // onProgress всегда вызываем на Main — безопасно и для postValue, и для прямого обновления View
+                    withContext(Dispatchers.Main) { onProgress?.invoke(done, total) }
                     server.copy(
                         pingMs      = if (ping < Long.MAX_VALUE) ping else -1L,
                         isReachable = ping < Long.MAX_VALUE
