@@ -65,7 +65,13 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private var lastConnectedServer: ServerConfig? = null
     private val trafficMonitor = TrafficMonitor { snap -> _trafficStats.postValue(snap) }
     private val watchdog = Watchdog(
-        onReconnect = { lastConnectedServer?.let { reconnect(it) } },
+        onReconnect = {
+            // Переключаемся на следующий лучший доступный сервер, а не на тот же сломанный
+            val current = lastConnectedServer
+            val next = _servers.value?.firstOrNull { it.isReachable && it.raw != current?.raw }
+                ?: current
+            next?.let { reconnect(it) }
+        },
         onStatusUpdate = { ms -> watchdogPing.postValue(ms) }
     )
 
@@ -123,6 +129,21 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             }
             if (killSwitchEnabled && !message.contains("отмен", ignoreCase = true)) {
                 KillSwitch.enable(ctx) { /* network lost while connected */ }
+            }
+            // Если сервер признан недоступным (прокси-проверка провалилась) —
+            // автоматически переключаемся на следующий доступный сервер
+            if (autoReconnect && DirectVpnService.serverFailed
+                    && !message.contains("отмен", ignoreCase = true)) {
+                DirectVpnService.serverFailed = false
+                val failedServer = lastConnectedServer
+                val next = _servers.value?.firstOrNull { it.isReachable && it.raw != failedServer?.raw }
+                if (next != null) {
+                    ConnectionLog.i("Авто-переключение: ${failedServer?.name} → ${next.name}")
+                    viewModelScope.launch {
+                        delay(2000)
+                        connectToServer(next)
+                    }
+                }
             }
         }
     }
