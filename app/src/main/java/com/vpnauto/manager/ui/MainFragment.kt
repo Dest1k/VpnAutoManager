@@ -17,10 +17,13 @@ import com.vpnauto.manager.model.Subscription
 import com.vpnauto.manager.service.DirectVpnService
 import com.vpnauto.manager.service.LocalProxyServer
 import com.vpnauto.manager.service.QrCodeGenerator
+import com.vpnauto.manager.service.SpeedTest
 import com.vpnauto.manager.util.PingTester
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.withTimeoutOrNull
 
 class MainFragment : Fragment() {
 
@@ -30,6 +33,7 @@ class MainFragment : Fragment() {
     private lateinit var serverAdapter: ServerAdapter
     private lateinit var subscriptionAdapter: SubscriptionAdapter
     private var pingAllJob: Job? = null
+    private var speedTestAllJob: Job? = null
 
     override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, saved: Bundle?): View {
         _binding = ActivityMainBinding.inflate(inflater, container, false)
@@ -53,9 +57,10 @@ class MainFragment : Fragment() {
             adapter = serverAdapter
         }
         subscriptionAdapter = SubscriptionAdapter(
-            onToggle = { sub: Subscription, enabled: Boolean -> viewModel.toggleSubscription(sub, enabled) },
-            onImport = { sub: Subscription -> viewModel.importSubscriptionToV2Ray(sub) },
-            onPing   = { sub: Subscription, holder: SubscriptionAdapter.ViewHolder -> pingSubscription(sub, holder) }
+            onToggle    = { sub: Subscription, enabled: Boolean -> viewModel.toggleSubscription(sub, enabled) },
+            onImport    = { sub: Subscription -> viewModel.importSubscriptionToV2Ray(sub) },
+            onPing      = { sub: Subscription, holder: SubscriptionAdapter.ViewHolder -> pingSubscription(sub, holder) },
+            onSpeedTest = { sub: Subscription, holder: SubscriptionAdapter.ViewHolder -> speedTestSubscription(sub, holder) }
         )
         binding.rvSubscriptions.apply {
             layoutManager = LinearLayoutManager(requireContext())
@@ -107,6 +112,7 @@ class MainFragment : Fragment() {
         binding.btnAddCustomSub.setOnClickListener { showAddCustomSubscriptionDialog() }
         binding.btnSettings.setOnClickListener { showSettingsDialog() }
         binding.btnPingAllSubs.setOnClickListener { pingAllSubscriptions() }
+        binding.btnSpeedTestAllSubs.setOnClickListener { speedTestAllSubscriptions() }
     }
 
     private fun observeViewModel() {
@@ -357,6 +363,126 @@ class MainFragment : Fragment() {
         }
     }
 
+    // ─── Тест скорости одной подписки ───────────────────────────
+
+    private fun speedTestSubscription(sub: Subscription, holder: SubscriptionAdapter.ViewHolder) {
+        viewLifecycleOwner.lifecycleScope.launch {
+            holder.tvPingResult.visibility = View.VISIBLE
+            holder.tvPingResult.text = "⏳ подготовка..."
+            holder.btnPing.isEnabled = false
+            holder.btnSpeedTest.isEnabled = false
+            try {
+                val result = runSpeedTestForSub(sub) { msg ->
+                    holder.tvPingResult.text = msg
+                }
+                holder.tvPingResult.text = result
+                subscriptionAdapter.setPingResult(sub.id, result)
+            } finally {
+                holder.btnPing.isEnabled = true
+                holder.btnSpeedTest.isEnabled = true
+            }
+        }
+    }
+
+    private fun speedTestAllSubscriptions() {
+        if (speedTestAllJob?.isActive == true) {
+            speedTestAllJob?.cancel()
+            speedTestAllJob = null
+            binding.btnSpeedTestAllSubs.text = "📊 Скорость"
+            return
+        }
+        val subs = viewModel.subscriptions.value?.filter { it.isEnabled } ?: return
+        if (subs.isEmpty()) { showSnackbar("Нет включённых подписок"); return }
+
+        binding.btnSpeedTestAllSubs.text = "✕ Стоп"
+        speedTestAllJob = viewLifecycleOwner.lifecycleScope.launch {
+            try {
+                for (sub in subs) {
+                    if (!isActive) break
+                    subscriptionAdapter.setPingResult(sub.id, "⏳ подготовка...")
+                    val result = runSpeedTestForSub(sub) { msg ->
+                        subscriptionAdapter.setPingResult(sub.id, msg)
+                    }
+                    subscriptionAdapter.setPingResult(sub.id, result)
+                }
+                showSnackbar("Тест скорости завершён")
+            } finally {
+                binding.btnSpeedTestAllSubs.text = "📊 Скорость"
+                speedTestAllJob = null
+            }
+        }
+    }
+
+    /**
+     * Общая логика теста скорости для одной подписки:
+     * 1. Загружает серверы (из кэша или по сети)
+     * 2. Пингует все серверы
+     * 3. Подключается к лучшему серверу
+     * 4. Запускает SpeedTest через SOCKS5 xray
+     * 5. Отключается (если до этого не было подключения)
+     * Возвращает строку с результатом для отображения.
+     */
+    private suspend fun runSpeedTestForSub(
+        sub: Subscription,
+        onStatus: (String) -> Unit
+    ): String {
+        // 1. Серверы
+        onStatus("⏳ скачиваем серверы...")
+        var servers = viewModel.getCachedServers(sub.id)
+        if (servers.isEmpty()) {
+            servers = viewModel.fetchServersForSub(sub) ?: emptyList()
+        }
+        if (servers.isEmpty()) return "⚠️ нет серверов"
+
+        // 2. Пинг
+        onStatus("⏳ пинг 0/${servers.size}...")
+        val tested = PingTester.testServers(servers) { done, total ->
+            onStatus("⏳ пинг $done/$total...")
+        }
+        val best = tested.firstOrNull { it.isReachable } ?: return "❌ нет доступных серверов"
+
+        // 3. Подключение
+        val wasRunning = DirectVpnService.isRunning
+        onStatus("⏳ подключение к ${best.name}...")
+        viewModel.connectToServer(best)
+
+        // Небольшая пауза — даём сервису начать подключение
+        delay(400)
+        if (!DirectVpnService.isConnecting && !DirectVpnService.isRunning) {
+            return "⚠️ требуется разрешение VPN — предоставьте его и повторите"
+        }
+
+        // 4. Ждём подключения (до 35с)
+        val connected = withTimeoutOrNull(35_000L) {
+            while (!DirectVpnService.isRunning) {
+                if (!DirectVpnService.isConnecting) return@withTimeoutOrNull false
+                delay(400)
+            }
+            true
+        } ?: false
+
+        if (!connected) {
+            return "❌ не удалось подключиться к ${best.name}"
+        }
+
+        // 5. Тест скорости
+        val speedResult = SpeedTest.run { msg -> onStatus("⏳ $msg") }
+
+        val pingText = "${best.pingMs}мс"
+        val result = if (speedResult != null && speedResult.downloadMbps > 0)
+            "✅ 📡 $pingText · ⬇ ${String.format("%.1f", speedResult.downloadMbps)} · ⬆ ${String.format("%.1f", speedResult.uploadMbps)} Мбит/с"
+        else
+            "✅ 📡 $pingText (скорость н/д)"
+
+        // 6. Отключаемся, только если подключались специально для теста
+        if (!wasRunning) {
+            viewModel.disconnect()
+            delay(1500)
+        }
+
+        return result
+    }
+
     private fun showSnackbar(message: String, isError: Boolean = false) {
         val s = Snackbar.make(binding.root, message, Snackbar.LENGTH_LONG)
         if (isError) s.setBackgroundTint(requireContext().getColor(R.color.error_color))
@@ -365,6 +491,7 @@ class MainFragment : Fragment() {
 
     override fun onDestroyView() {
         pingAllJob?.cancel()
+        speedTestAllJob?.cancel()
         super.onDestroyView()
         _binding = null
     }

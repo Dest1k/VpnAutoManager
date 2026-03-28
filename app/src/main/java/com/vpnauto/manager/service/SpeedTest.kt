@@ -8,6 +8,8 @@ import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
+import java.net.InetSocketAddress
+import java.net.Proxy
 import java.util.concurrent.TimeUnit
 
 data class SpeedTestResult(
@@ -28,36 +30,49 @@ object SpeedTest {
         "https://httpbin.org/post"
     )
 
-    private val client = OkHttpClient.Builder()
-        .connectTimeout(10, TimeUnit.SECONDS)
-        .readTimeout(30, TimeUnit.SECONDS)
-        .build()
+    /**
+     * Создаём клиент с явным SOCKS5-прокси на xray-порт.
+     * Приложение исключено из VPN через addDisallowedApplication, поэтому без явного прокси
+     * весь трафик идёт напрямую в интернет, минуя тоннель.
+     * С SOCKS5-прокси: SpeedTest → xray SOCKS5 → VLESS/VMess → VPN-сервер → интернет.
+     */
+    private fun buildClient(): OkHttpClient {
+        val socksProxy = Proxy(
+            Proxy.Type.SOCKS,
+            InetSocketAddress("127.0.0.1", DirectVpnService.socksPort)
+        )
+        return OkHttpClient.Builder()
+            .proxy(socksProxy)
+            .connectTimeout(10, TimeUnit.SECONDS)
+            .readTimeout(60, TimeUnit.SECONDS)
+            .build()
+    }
 
     suspend fun run(onProgress: (String) -> Unit): SpeedTestResult? {
         if (!DirectVpnService.isRunning) return null
-        return runInternal(onProgress)
+        return runInternal(buildClient(), onProgress)
     }
 
     // onProgress вызывается на том потоке, откуда вызывается runInternal (обычно Main).
     // Каждая блокирующая операция выполняется в Dispatchers.IO.
-    private suspend fun runInternal(onProgress: (String) -> Unit): SpeedTestResult {
+    private suspend fun runInternal(client: OkHttpClient, onProgress: (String) -> Unit): SpeedTestResult {
         onProgress("Измеряем пинг...")
-        val ping = withContext(Dispatchers.IO) { measurePing() }
+        val ping = withContext(Dispatchers.IO) { measurePing(client) }
         currentCoroutineContext().ensureActive()
 
         onProgress("Пинг: ${ping}ms. Тест загрузки...")
-        val down = withContext(Dispatchers.IO) { measureDownload() }
+        val down = withContext(Dispatchers.IO) { measureDownload(client) }
         currentCoroutineContext().ensureActive()
 
         onProgress("Загрузка: ${String.format("%.1f", down)} Мбит/с. Тест отдачи...")
-        val up = withContext(Dispatchers.IO) { measureUpload() }
+        val up = withContext(Dispatchers.IO) { measureUpload(client) }
         currentCoroutineContext().ensureActive()
 
         onProgress("Готово!")
         return SpeedTestResult(down, up, ping)
     }
 
-    private fun measurePing(): Long {
+    private fun measurePing(client: OkHttpClient): Long {
         return try {
             val start = System.currentTimeMillis()
             client.newCall(Request.Builder()
@@ -67,7 +82,7 @@ object SpeedTest {
         } catch (_: Exception) { 0L }
     }
 
-    private fun measureDownload(): Double {
+    private fun measureDownload(client: OkHttpClient): Double {
         for (url in DOWNLOAD_URLS) {
             try {
                 val req = Request.Builder().url(url).build()
@@ -81,7 +96,7 @@ object SpeedTest {
         return 0.0
     }
 
-    private fun measureUpload(): Double {
+    private fun measureUpload(client: OkHttpClient): Double {
         // Измеряем только время отправки тела запроса (до получения ответа сервера),
         // иначе в результат входит и время обработки на сервере.
         try {

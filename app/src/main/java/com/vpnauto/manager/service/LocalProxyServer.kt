@@ -130,6 +130,10 @@ class LocalProxyServer(
         try {
             upstream.connect(InetSocketAddress(upstreamHost, upstreamPort), 5000)
             Socks5Client.connect(upstream, host, port)
+            // Сбрасываем таймаут: Socks5Client.connect() ставит soTimeout=10s для хендшейка,
+            // но для pump() нужен бесконечный таймаут — иначе соединение рвётся после 10с простоя.
+            upstream.soTimeout = 0
+            client.soTimeout = 0
 
             // Отвечаем клиенту: SUCCESS
             clientOut.write(byteArrayOf(0x05, 0x00, 0x00, 0x01, 0,0,0,0, 0,0))
@@ -189,6 +193,9 @@ class LocalProxyServer(
         try {
             upstream.connect(InetSocketAddress(upstreamHost, upstreamPort), 5000)
             Socks5Client.connect(upstream, host, port)
+            // Сбрасываем таймаут — аналогично handleSocks5
+            upstream.soTimeout = 0
+            client.soTimeout = 0
             clientOut.write("HTTP/1.1 200 Connection Established\r\n\r\n".toByteArray())
             clientOut.flush()
             pump(clientIn, clientOut, upstream.getInputStream(), upstream.getOutputStream())
