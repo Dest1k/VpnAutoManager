@@ -52,6 +52,8 @@ class DirectVpnService : VpnService() {
         @Volatile var hotspotProxyAddress = ""
         /** Актуальный порт xray SOCKS5. Устанавливается при подключении, нужен Watchdog и hotspot-прокси. */
         @Volatile var socksPort: Int = 10808
+        /** true если прокси-проверка провалилась → ViewModel должен переключиться на следующий сервер. */
+        @Volatile var serverFailed: Boolean = false
 
         fun buildConnectIntent(ctx: Context, s: ServerConfig) =
             Intent(ctx, DirectVpnService::class.java).apply {
@@ -111,6 +113,7 @@ class DirectVpnService : VpnService() {
             quickCleanup()
         }
         isConnecting = false
+        serverFailed = false
 
         ConnectionLog.clear()
         ConnectionLog.i("═══ Подключение: ${server.name} ═══")
@@ -234,7 +237,11 @@ class DirectVpnService : VpnService() {
                 }
             } catch (e: Exception) {
                 FileLogger.log("PROXY CHECK FAILED: ${e.message}")
-                ConnectionLog.w("⚠️ Трафик не проходит через прокси: ${e.message}\nВозможно сервер ${server.host} недоступен — попробуйте другой.")
+                ConnectionLog.e("⚠️ Сервер ${server.host} недоступен (${e.message}) — переключаемся...")
+                if (isRunning) {
+                    serverFailed = true
+                    withContext(Dispatchers.Main) { stopVpn() }
+                }
             }
         }
     }
