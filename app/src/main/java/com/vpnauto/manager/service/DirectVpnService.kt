@@ -295,7 +295,10 @@ class DirectVpnService : VpnService() {
                 .addAddress("10.8.0.1", 30)
                 .addDnsServer("8.8.8.8")
                 .addDnsServer("1.1.1.1")
-                .setMtu(1500)
+                // MTU 1380 — с запасом на VPN-оверхед (IP+TCP+TLS+VLESS ≈ 55–120 байт).
+                // При MTU 1500 пакеты после оборачивания в тоннель могут превышать физический MTU
+                // канала → фрагментация → TCP RST → ERR_CONNECTION_CLOSED в браузере.
+                .setMtu(1380)
                 .setBlocking(true)   // blocking — корректно для tun2socks
 
             for ((addr, prefix) in routes) {

@@ -101,7 +101,7 @@ class SubscriptionAdapter(
         val btnImport: android.widget.Button = view.findViewById(R.id.btnSubImport)
         val btnPing: com.google.android.material.button.MaterialButton =
             view.findViewById(R.id.btnSubPing)
-        val btnSpeedTest: com.google.android.material.button.MaterialButton =
+        val btnSpeedTest: com.google.android.material.button.MaterialButton? =
             view.findViewById(R.id.btnSubSpeedTest)
     }
 
@@ -125,7 +125,7 @@ class SubscriptionAdapter(
         holder.toggle.setOnCheckedChangeListener { _, checked -> onToggle(sub, checked) }
         holder.btnImport.setOnClickListener { onImport(sub) }
         holder.btnPing.setOnClickListener { onPing(sub, holder) }
-        holder.btnSpeedTest.setOnClickListener { onSpeedTest(sub, holder) }
+        holder.btnSpeedTest?.setOnClickListener { onSpeedTest(sub, holder) }
 
         val result = pingResults[sub.id]
         if (result != null) {
