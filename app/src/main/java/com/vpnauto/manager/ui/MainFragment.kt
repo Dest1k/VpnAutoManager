@@ -289,33 +289,40 @@ class MainFragment : Fragment() {
             holder.tvPingResult.visibility = View.VISIBLE
             holder.tvPingResult.text = "⏳ загрузка..."
             holder.btnPing.isEnabled = false
+            try {
+                var servers = viewModel.getCachedServers(sub.id)
+                if (servers.isEmpty()) {
+                    holder.tvPingResult.text = "⏳ скачиваем серверы..."
+                    servers = viewModel.fetchServersForSub(sub) ?: emptyList()
+                }
 
-            var servers = viewModel.getCachedServers(sub.id)
-            if (servers.isEmpty()) {
-                holder.tvPingResult.text = "⏳ скачиваем серверы..."
-                servers = viewModel.fetchServersForSub(sub) ?: emptyList()
-            }
+                if (servers.isEmpty()) {
+                    holder.tvPingResult.text = "⚠️ нет серверов"
+                    return@launch
+                }
 
-            if (servers.isEmpty()) {
-                holder.tvPingResult.text = "⚠️ нет серверов"
+                holder.tvPingResult.text = "⏳ пинг 0/${servers.size}..."
+                val tested = PingTester.testServers(servers) { done, total ->
+                    if (isActive) holder.tvPingResult.text = "⏳ пинг $done/$total..."
+                }
+
+                val reachable = tested.count { it.isReachable }
+                val best = tested.firstOrNull { it.isReachable }
+                val resultText = if (best != null)
+                    "✅ $reachable/${tested.size} · лучший: ${best.pingMs}ms"
+                else
+                    "❌ нет доступных (${tested.size} проверено)"
+                holder.tvPingResult.text = resultText
+                subscriptionAdapter.setPingResult(sub.id, resultText)
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e  // пробрасываем отмену
+            } catch (e: Exception) {
+                val errText = "❌ ошибка: ${e.message?.take(40)}"
+                holder.tvPingResult.text = errText
+                subscriptionAdapter.setPingResult(sub.id, errText)
+            } finally {
                 holder.btnPing.isEnabled = true
-                return@launch
             }
-
-            holder.tvPingResult.text = "⏳ пинг 0/${servers.size}..."
-            val tested = PingTester.testServers(servers) { done, total ->
-                holder.tvPingResult.text = "⏳ пинг $done/$total..."
-            }
-
-            val reachable = tested.count { it.isReachable }
-            val best = tested.firstOrNull { it.isReachable }
-            val resultText = if (best != null)
-                "✅ $reachable/${tested.size} · лучший: ${best.pingMs}ms"
-            else
-                "❌ нет доступных (${tested.size} проверено)"
-            holder.tvPingResult.text = resultText
-            subscriptionAdapter.setPingResult(sub.id, resultText)
-            holder.btnPing.isEnabled = true
         }
     }
 
@@ -346,7 +353,7 @@ class MainFragment : Fragment() {
                     }
                     subscriptionAdapter.setPingResult(sub.id, "⏳ пинг 0/${servers.size}...")
                     val tested = PingTester.testServers(servers) { done, total ->
-                        subscriptionAdapter.setPingResult(sub.id, "⏳ пинг $done/$total...")
+                        if (isActive) subscriptionAdapter.setPingResult(sub.id, "⏳ пинг $done/$total...")
                     }
                     val reachable = tested.count { it.isReachable }
                     val best = tested.firstOrNull { it.isReachable }
@@ -370,16 +377,22 @@ class MainFragment : Fragment() {
             holder.tvPingResult.visibility = View.VISIBLE
             holder.tvPingResult.text = "⏳ подготовка..."
             holder.btnPing.isEnabled = false
-            holder.btnSpeedTest.isEnabled = false
+            holder.btnSpeedTest?.isEnabled = false
             try {
                 val result = runSpeedTestForSub(sub) { msg ->
-                    holder.tvPingResult.text = msg
+                    if (isActive) holder.tvPingResult.text = msg
                 }
                 holder.tvPingResult.text = result
                 subscriptionAdapter.setPingResult(sub.id, result)
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                val errText = "❌ ошибка: ${e.message?.take(40)}"
+                holder.tvPingResult.text = errText
+                subscriptionAdapter.setPingResult(sub.id, errText)
             } finally {
                 holder.btnPing.isEnabled = true
-                holder.btnSpeedTest.isEnabled = true
+                holder.btnSpeedTest?.isEnabled = true
             }
         }
     }

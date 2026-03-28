@@ -3,7 +3,9 @@ package com.vpnauto.manager.service
 import android.util.Log
 import kotlinx.coroutines.*
 import java.net.InetSocketAddress
+import java.net.Proxy
 import java.net.Socket
+import java.net.URL
 
 private const val TAG = "Watchdog"
 
@@ -23,6 +25,7 @@ class Watchdog(
         private const val CHECK_INTERVAL_MS = 30_000L
         private const val MAX_FAILURES = 3
         private const val PROBE_TIMEOUT_MS = 3000
+        private const val HTTP_CHECK_TIMEOUT_MS = 6000
     }
 
     fun start() {
@@ -61,12 +64,35 @@ class Watchdog(
         job = null
     }
 
+    /**
+     * Двухуровневая проверка:
+     * 1. TCP-пинг SOCKS5-порта xray (быстро, для отображения latency).
+     * 2. Если TCP-пинг прошёл — HTTP HEAD через SOCKS5, чтобы убедиться что
+     *    VPN-тоннель до удалённого сервера живой (xray процесс может быть жив,
+     *    но сам сервер может не отвечать → ERR_CONNECTION_CLOSED у пользователя).
+     * Возвращает latency в мс или -1 при ошибке.
+     */
     private fun probeProxy(): Long {
-        return try {
-            val port = DirectVpnService.socksPort   // актуальный порт xray (может быть 10808+N)
+        val port = DirectVpnService.socksPort
+        // 1. Быстрый TCP-пинг для latency
+        val tcpLatency = try {
             val start = System.currentTimeMillis()
             Socket().use { it.connect(InetSocketAddress("127.0.0.1", port), PROBE_TIMEOUT_MS) }
             System.currentTimeMillis() - start
+        } catch (_: Exception) { return -1L }
+
+        // 2. Реальная проверка интернета через прокси
+        return try {
+            val proxy = Proxy(Proxy.Type.SOCKS, InetSocketAddress("127.0.0.1", port))
+            val conn = (URL("https://connectivitycheck.gstatic.com/generate_204")
+                .openConnection(proxy) as java.net.HttpURLConnection).apply {
+                connectTimeout = HTTP_CHECK_TIMEOUT_MS
+                readTimeout    = HTTP_CHECK_TIMEOUT_MS
+                requestMethod  = "HEAD"
+            }
+            val code = conn.responseCode
+            conn.disconnect()
+            if (code == 204) tcpLatency else -1L
         } catch (_: Exception) { -1L }
     }
 }
