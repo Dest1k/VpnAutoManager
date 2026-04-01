@@ -37,9 +37,11 @@ const val NOTIF_VPN   = 3001
 
 class DirectVpnService : VpnService() {
 
-    private var tunPfd:      ParcelFileDescriptor? = null
-    private var hotspotProxy: LocalProxyServer?    = null
-    private var connectJob:   Job?                 = null
+    private var tunPfd:        ParcelFileDescriptor? = null
+    private var hotspotProxy:  LocalProxyServer?    = null
+    private var connectJob:    Job?                 = null
+    /** Job проверки прокси: отменяется при старте каждого нового подключения */
+    private var proxyCheckJob: Job?                 = null
     private val xrayManager   by lazy { XrayManager(this) }
     private val tun2socks     by lazy { Tun2socksManager(this) }
     private val scope         = CoroutineScope(Dispatchers.Main + SupervisorJob())
@@ -211,17 +213,32 @@ class DirectVpnService : VpnService() {
         // подключение, но и возвращает данные). Делаем это асинхронно — не блокируем старт.
         // Ждём дольше (10 с) — VLESS/Reality поверх TLS требует времени на установку туннеля.
         // 3 попытки с паузой 5 с между ними перед тем как признать сервер недоступным.
-        scope.launch(Dispatchers.IO) {
+        //
+        // ВАЖНО: сохраняем Job и проверяем, что порт не сменился (новое подключение не
+        // должно быть убито проверкой от предыдущей сессии).
+        val myPort = socksPort  // фиксируем порт этой сессии до старта корутины
+        proxyCheckJob?.cancel()
+        proxyCheckJob = scope.launch(Dispatchers.IO) {
             delay(10_000L) // даём tun2socks, xray и TLS-хэндшейк время стабилизироваться
-            if (!isRunning) return@launch
+            // Если за эти 10 с стартовало новое подключение — наш порт уже не актуален.
+            if (!isRunning || DirectVpnService.socksPort != myPort) {
+                FileLogger.log("PROXY CHECK: skipped — port changed ($myPort → ${DirectVpnService.socksPort}) or VPN stopped")
+                return@launch
+            }
 
             var proxyOk = false
             repeat(3) { attempt ->
                 if (proxyOk || !isRunning) return@repeat
+                // Повторно проверяем, что порт не сменился между попытками
+                if (DirectVpnService.socksPort != myPort) {
+                    FileLogger.log("PROXY CHECK: abandoned — port changed between attempts")
+                    proxyOk = true  // не трогаем новое подключение
+                    return@repeat
+                }
                 try {
                     val socksProxy = java.net.Proxy(
                         java.net.Proxy.Type.SOCKS,
-                        java.net.InetSocketAddress("127.0.0.1", socksPort)
+                        java.net.InetSocketAddress("127.0.0.1", myPort)
                     )
                     val url = java.net.URL("https://connectivitycheck.gstatic.com/generate_204")
                     val conn = url.openConnection(socksProxy) as java.net.HttpURLConnection
@@ -471,6 +488,7 @@ class DirectVpnService : VpnService() {
 
     /** Останавливает tun2socks/xray и закрывает TUN fd. Идемпотентна. */
     private fun tearDown() {
+        proxyCheckJob?.cancel(); proxyCheckJob = null
         tun2socks.stop()
         val pfd = tunPfd; tunPfd = null   // обнуляем до close() — защита от double-close
         runCatching { pfd?.close() }
@@ -479,7 +497,12 @@ class DirectVpnService : VpnService() {
     }
 
     /** Быстрая очистка без broadcastStatus/stopSelf (при переключении серверов). */
-    private fun quickCleanup() = tearDown()
+    private fun quickCleanup() {
+        // Отменяем проверку прокси предыдущей сессии — иначе она проснётся
+        // через 10 с и попробует несуществующий порт → ложный serverFailed.
+        proxyCheckJob?.cancel(); proxyCheckJob = null
+        tearDown()
+    }
 
     private fun cleanup() {
         tearDown()
