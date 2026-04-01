@@ -209,39 +209,47 @@ class DirectVpnService : VpnService() {
 
         // Проверяем что трафик реально идёт через прокси (сервер не просто принимает
         // подключение, но и возвращает данные). Делаем это асинхронно — не блокируем старт.
+        // Ждём дольше (10 с) — VLESS/Reality поверх TLS требует времени на установку туннеля.
+        // 3 попытки с паузой 5 с между ними перед тем как признать сервер недоступным.
         scope.launch(Dispatchers.IO) {
-            delay(2500) // даём tun2socks и xray время инициализировать маршруты
+            delay(10_000L) // даём tun2socks, xray и TLS-хэндшейк время стабилизироваться
             if (!isRunning) return@launch
-            try {
-                // Тестируем через SOCKS5-порт xray, а не напрямую.
-                // Сервис исключён из VPN через addDisallowedApplication, поэтому
-                // openConnection() без прокси идёт напрямую в интернет — мимо тоннеля.
-                // С явным SOCKS5-прокси запрос проходит: Service → xray SOCKS5 → VLESS → интернет.
-                val socksProxy = java.net.Proxy(
-                    java.net.Proxy.Type.SOCKS,
-                    java.net.InetSocketAddress("127.0.0.1", socksPort)
-                )
-                val url = java.net.URL("https://connectivitycheck.gstatic.com/generate_204")
-                val conn = url.openConnection(socksProxy) as java.net.HttpURLConnection
-                conn.connectTimeout = 6000
-                conn.readTimeout    = 6000
-                conn.requestMethod  = "HEAD"
-                val code = conn.responseCode
-                conn.disconnect()
-                if (code == 204) {
-                    FileLogger.log("PROXY CHECK: OK (HTTP 204)")
-                    ConnectionLog.ok("📶 Связь через прокси подтверждена")
-                } else {
-                    FileLogger.log("PROXY CHECK: unexpected HTTP $code")
-                    ConnectionLog.w("⚠️ Прокси работает, но сервер вернул HTTP $code")
+
+            var proxyOk = false
+            repeat(3) { attempt ->
+                if (proxyOk || !isRunning) return@repeat
+                try {
+                    val socksProxy = java.net.Proxy(
+                        java.net.Proxy.Type.SOCKS,
+                        java.net.InetSocketAddress("127.0.0.1", socksPort)
+                    )
+                    val url = java.net.URL("https://connectivitycheck.gstatic.com/generate_204")
+                    val conn = url.openConnection(socksProxy) as java.net.HttpURLConnection
+                    conn.connectTimeout = 8000
+                    conn.readTimeout    = 8000
+                    conn.requestMethod  = "HEAD"
+                    val code = conn.responseCode
+                    conn.disconnect()
+                    if (code == 204) {
+                        proxyOk = true
+                        FileLogger.log("PROXY CHECK: OK (HTTP 204, attempt=${attempt+1})")
+                        ConnectionLog.ok("📶 Связь через прокси подтверждена")
+                    } else {
+                        FileLogger.log("PROXY CHECK: HTTP $code (attempt=${attempt+1})")
+                        ConnectionLog.w("⚠️ Прокси вернул HTTP $code (попытка ${attempt+1}/3)")
+                    }
+                } catch (e: Exception) {
+                    FileLogger.log("PROXY CHECK FAILED attempt=${attempt+1}: ${e.message}")
+                    ConnectionLog.w("⚠️ Проверка прокси не прошла (попытка ${attempt+1}/3): ${e.message?.take(60)}")
                 }
-            } catch (e: Exception) {
-                FileLogger.log("PROXY CHECK FAILED: ${e.message}")
-                ConnectionLog.e("⚠️ Сервер ${server.host} недоступен (${e.message}) — переключаемся...")
-                if (isRunning) {
-                    serverFailed = true
-                    withContext(Dispatchers.Main) { stopVpn() }
-                }
+                if (!proxyOk && attempt < 2 && isRunning) delay(5_000L)
+            }
+
+            if (!proxyOk && isRunning) {
+                FileLogger.log("PROXY CHECK: all 3 attempts failed — switching server")
+                ConnectionLog.e("⚠️ Сервер ${server.host} недоступен после 3 попыток — переключаемся...")
+                serverFailed = true
+                withContext(Dispatchers.Main) { stopVpn() }
             }
         }
     }

@@ -4,8 +4,9 @@
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:orientation="vertical"
-    android:paddingVertical="8dp">
+    android:paddingVertical="6dp">
 
+    <!-- Строка 1: имя + переключатель -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
@@ -25,6 +26,7 @@
                 android:layout_height="wrap_content"
                 android:text="Subscription name"
                 android:textSize="13sp"
+                android:textStyle="bold"
                 android:textColor="@color/text_primary"
                 android:maxLines="1"
                 android:ellipsize="end"/>
@@ -71,39 +73,6 @@
 
         </LinearLayout>
 
-        <com.google.android.material.button.MaterialButton
-            android:id="@+id/btnSubPing"
-            style="@style/Widget.Material3.Button.TextButton"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="📡"
-            android:textSize="14sp"
-            android:minWidth="0dp"
-            android:paddingStart="6dp"
-            android:paddingEnd="6dp"/>
-
-        <com.google.android.material.button.MaterialButton
-            android:id="@+id/btnSubSpeedTest"
-            style="@style/Widget.Material3.Button.TextButton"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="📊"
-            android:textSize="14sp"
-            android:minWidth="0dp"
-            android:paddingStart="4dp"
-            android:paddingEnd="4dp"/>
-
-        <com.google.android.material.button.MaterialButton
-            android:id="@+id/btnSubImport"
-            style="@style/Widget.Material3.Button.TextButton"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="→"
-            android:textSize="16sp"
-            android:minWidth="0dp"
-            android:paddingStart="4dp"
-            android:paddingEnd="4dp"/>
-
         <com.google.android.material.switchmaterial.SwitchMaterial
             android:id="@+id/switchSubEnabled"
             android:layout_width="wrap_content"
@@ -111,7 +80,77 @@
 
     </LinearLayout>
 
-    <!-- Результат пинг-теста (скрыт по умолчанию) -->
+    <!-- Строка 2: кнопки действий -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:layout_marginTop="2dp">
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btnSubPing"
+            style="@style/Widget.Material3.Button.TextButton"
+            android:layout_width="0dp"
+            android:layout_weight="1"
+            android:layout_height="32dp"
+            android:text="📡 Пинг"
+            android:textSize="11sp"
+            android:minWidth="0dp"
+            android:paddingStart="4dp"
+            android:paddingEnd="4dp"/>
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btnSubSpeedTest"
+            style="@style/Widget.Material3.Button.TextButton"
+            android:layout_width="0dp"
+            android:layout_weight="1"
+            android:layout_height="32dp"
+            android:text="📊 Скорость"
+            android:textSize="11sp"
+            android:minWidth="0dp"
+            android:paddingStart="4dp"
+            android:paddingEnd="4dp"/>
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btnSubImport"
+            style="@style/Widget.Material3.Button.TextButton"
+            android:layout_width="0dp"
+            android:layout_weight="1"
+            android:layout_height="32dp"
+            android:text="→ v2ray"
+            android:textSize="11sp"
+            android:minWidth="0dp"
+            android:paddingStart="4dp"
+            android:paddingEnd="4dp"/>
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btnSubClear"
+            style="@style/Widget.Material3.Button.TextButton"
+            android:layout_width="0dp"
+            android:layout_weight="1"
+            android:layout_height="32dp"
+            android:text="🗑 Очистить"
+            android:textSize="11sp"
+            android:minWidth="0dp"
+            android:paddingStart="4dp"
+            android:paddingEnd="4dp"
+            android:textColor="@color/ping_warn"/>
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btnSubDelete"
+            style="@style/Widget.Material3.Button.TextButton"
+            android:layout_width="wrap_content"
+            android:layout_height="32dp"
+            android:text="✕"
+            android:textSize="14sp"
+            android:minWidth="0dp"
+            android:paddingStart="6dp"
+            android:paddingEnd="6dp"
+            android:textColor="@color/error_color"/>
+
+    </LinearLayout>
+
+    <!-- Результат пинга/скорости -->
     <TextView
         android:id="@+id/tvSubPingResult"
         android:layout_width="match_parent"
@@ -120,6 +159,7 @@
         android:textSize="11sp"
         android:textColor="@color/ping_good"
         android:visibility="gone"
-        android:layout_marginTop="2dp"/>
+        android:layout_marginTop="2dp"
+        android:paddingStart="4dp"/>
 
 </LinearLayout>

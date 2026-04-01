@@ -136,6 +136,40 @@ class SubscriptionRepository(private val context: Context) {
         prefs.edit().putString("servers_$subId", gson.toJson(servers)).apply()
     }
 
+    /** Удаляет кэш серверов конкретной подписки. */
+    fun clearCachedServers(subId: String) {
+        prefs.edit().remove("servers_$subId").apply()
+        File(context.cacheDir, "$subId.txt").delete()
+    }
+
+    /** Удаляет кэш серверов всех известных подписок. */
+    fun clearAllCachedServers() {
+        val editor = prefs.edit()
+        getSubscriptions().forEach { sub ->
+            editor.remove("servers_${sub.id}")
+            File(context.cacheDir, "${sub.id}.txt").delete()
+        }
+        editor.apply()
+    }
+
+    /** Удаляет конкретную подписку полностью (вместе с кэшем серверов). */
+    fun removeSubscription(subId: String) {
+        clearCachedServers(subId)
+        val list = getSubscriptions().toMutableList()
+        list.removeAll { it.id == subId }
+        saveSubscriptions(list)
+    }
+
+    /** Удаляет все пользовательские (CUSTOM) подписки и их кэши. */
+    fun removeAllCustomSubscriptions() {
+        val list = getSubscriptions().toMutableList()
+        list.filter { it.type == com.vpnauto.manager.model.SubscriptionType.CUSTOM }.forEach {
+            clearCachedServers(it.id)
+        }
+        list.removeAll { it.type == com.vpnauto.manager.model.SubscriptionType.CUSTOM }
+        saveSubscriptions(list)
+    }
+
     fun getAllCachedServers(): List<ServerConfig> =
         getSubscriptions().filter { it.isEnabled }.flatMap { getCachedServers(it.id) }
 
@@ -197,7 +231,9 @@ class SubscriptionRepository(private val context: Context) {
                     Log.d(TAG, "OK: $url (${body.length} bytes)")
                     File(context.cacheDir, "${sub.id}.txt").writeText(body)
 
-                    val servers = ConfigParser.parseSubscription(body)
+                    // Тегируем каждый сервер идентификатором подписки, чтобы
+                    // можно было группировать и сохранять результаты пинга отдельно.
+                    val servers = ConfigParser.parseSubscription(body).map { it.copy(subId = sub.id) }
                     Log.d(TAG, "Parsed ${servers.size} servers from ${sub.id}")
 
                     saveServers(sub.id, servers)
