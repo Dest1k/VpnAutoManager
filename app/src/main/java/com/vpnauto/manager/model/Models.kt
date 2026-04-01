@@ -11,7 +11,8 @@ data class ServerConfig(
     val port: Int,
     val name: String,
     var pingMs: Long = -1L,
-    var isReachable: Boolean = false
+    var isReachable: Boolean = false,
+    val subId: String = ""   // к какой подписке принадлежит сервер; "" — неизвестно
 )
 
 data class Subscription(

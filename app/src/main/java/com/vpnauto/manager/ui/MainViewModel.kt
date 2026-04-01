@@ -28,6 +28,32 @@ sealed class UiState {
 }
 enum class VpnConnState { DISCONNECTED, CONNECTING, CONNECTED }
 
+/**
+ * Элемент единого списка серверов (для RecyclerView с группировкой).
+ *
+ * Структура отображения:
+ *  - [SubHeader] — заголовок группы подписки (нажать = свернуть/развернуть)
+ *  - [SubServer] — не пингованный сервер в группе подписки
+ *  - [PingedHeader] — разделитель «Пропингованные серверы»
+ *  - [PingedServer] — пропингованный сервер, отсортированный по latency
+ */
+sealed class ServerListItem {
+    data class SubHeader(
+        val sub: Subscription,
+        val serverCount: Int,
+        val isExpanded: Boolean
+    ) : ServerListItem()
+
+    data class SubServer(
+        val server: ServerConfig,
+        val subId: String
+    ) : ServerListItem()
+
+    object PingedHeader : ServerListItem()
+
+    data class PingedServer(val server: ServerConfig) : ServerListItem()
+}
+
 class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     private val repo = SubscriptionRepository(application)
@@ -56,7 +82,13 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val _isUpdating   = MutableLiveData(false)
     val isUpdating: LiveData<Boolean> = _isUpdating
 
-    // Новые LiveData
+    /** Сгруппированный список для RecyclerView (заголовки подписок + серверы + пропингованные). */
+    private val _serverListItems = MutableLiveData<List<ServerListItem>>()
+    val serverListItems: LiveData<List<ServerListItem>> = _serverListItems
+
+    /** Состояние развёрнутости групп подписок (subId → expanded). */
+    private val expandedGroups = mutableMapOf<String, Boolean>()
+
     private val _trafficStats = MutableLiveData<TrafficSnapshot?>()
     val trafficStats: LiveData<TrafficSnapshot?> = _trafficStats
     val watchdogPing  = MutableLiveData<Long>(-1L)
@@ -67,9 +99,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val trafficMonitor = TrafficMonitor { snap -> _trafficStats.postValue(snap) }
     private val watchdog = Watchdog(
         onReconnect = {
-            // Переключаемся на следующий лучший доступный сервер, а не на тот же сломанный
             val current = lastConnectedServer
-            val next = _servers.value?.firstOrNull { it.isReachable && it.raw != current?.raw }
+            val servers = _servers.value
+            // Сначала ищем пропингованный другой сервер, иначе — любой другой
+            val next = servers?.firstOrNull { it.isReachable && it.raw != current?.raw }
+                ?: servers?.firstOrNull { it.raw != current?.raw }
                 ?: current
             next?.let { reconnect(it) }
         },
@@ -120,7 +154,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             trafficMonitor.stop()
             watchdog.stop()
             _trafficStats.postValue(null)
-            // Обновить историю
             ConnectionHistory.updateLast {
                 copy(
                     disconnectedAt = System.currentTimeMillis(),
@@ -129,7 +162,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 )
             }
             if (killSwitchEnabled && !message.contains("отмен", ignoreCase = true)) {
-                KillSwitch.enable(ctx) { /* network lost while connected */ }
+                KillSwitch.enable(ctx) { }
             }
             // Если сервер признан недоступным (прокси-проверка провалилась) —
             // автоматически переключаемся на следующий доступный сервер
@@ -137,13 +170,18 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     && !message.contains("отмен", ignoreCase = true)) {
                 DirectVpnService.serverFailed = false
                 val failedServer = lastConnectedServer
-                val next = _servers.value?.firstOrNull { it.isReachable && it.raw != failedServer?.raw }
+                val servers = _servers.value
+                val next = servers?.firstOrNull { it.isReachable && it.raw != failedServer?.raw }
+                    ?: servers?.firstOrNull { it.raw != failedServer?.raw }
                 if (next != null) {
                     ConnectionLog.i("Авто-переключение: ${failedServer?.name} → ${next.name}")
                     viewModelScope.launch {
                         delay(2000)
                         connectToServer(next)
                     }
+                } else {
+                    ConnectionLog.w("Авто-переключение: нет альтернативных серверов")
+                    _uiState.postValue(UiState.Error("Нет доступных серверов для переподключения"))
                 }
             }
         }
@@ -170,7 +208,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
         if (NetworkRules.isEnabled()) registerNetworkRules()
 
-        // Авто-подключение при запуске
         if (autoConnectOnLaunch && !DirectVpnService.isRunning && !DirectVpnService.isConnecting) {
             val best = _bestServer.value
             if (best != null) connectToServer(best)
@@ -187,12 +224,56 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun loadData() {
-        _subscriptions.value = repo.getSubscriptions()
+        val subs = repo.getSubscriptions()
+        _subscriptions.value = subs
         val cached = repo.getAllCachedServers()
         _servers.value = cached
         _bestServer.value = cached.firstOrNull { it.isReachable }
+        rebuildServerListItems(subs, cached)
         updateLastUpdateText()
         rescheduleWork()
+    }
+
+    /**
+     * Перестраивает единый список элементов для RecyclerView:
+     * 1. По каждой подписке — заголовок (expandable) + не пингованные серверы.
+     * 2. Внизу — раздел «Пропингованные», отсортированный по latency.
+     */
+    fun rebuildServerListItems(
+        subs: List<Subscription> = _subscriptions.value ?: emptyList(),
+        servers: List<ServerConfig> = _servers.value ?: emptyList()
+    ) {
+        val items = mutableListOf<ServerListItem>()
+
+        // Пропингованные серверы (isReachable = true)
+        val pinged = servers.filter { it.isReachable }.sortedBy { it.pingMs }
+        // Не пингованные — разбиваем по подпискам
+        val unpinged = servers.filter { !it.isReachable }
+
+        // Группы по подпискам (только включённые подписки)
+        subs.filter { it.isEnabled }.forEach { sub ->
+            val subUnpinged = unpinged.filter { it.subId == sub.id }
+            // Серверы без subId (старый кэш) → тоже включаем в первую попавшуюся подписку
+            val isExpanded = expandedGroups[sub.id] ?: false
+            items.add(ServerListItem.SubHeader(sub, subUnpinged.size, isExpanded))
+            if (isExpanded) {
+                subUnpinged.forEach { items.add(ServerListItem.SubServer(it, sub.id)) }
+            }
+        }
+
+        // Раздел пропингованных
+        if (pinged.isNotEmpty()) {
+            items.add(ServerListItem.PingedHeader)
+            pinged.forEach { items.add(ServerListItem.PingedServer(it)) }
+        }
+
+        _serverListItems.value = items
+    }
+
+    /** Переключить развёрнутость группы подписки. */
+    fun toggleGroup(subId: String) {
+        expandedGroups[subId] = !(expandedGroups[subId] ?: false)
+        rebuildServerListItems()
     }
 
     fun updateNow() {
@@ -215,11 +296,23 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 val tested = PingTester.testServers(allServers) { done, total ->
                     _uiState.postValue(UiState.Loading("Пинг: $done / $total"))
                 }
+
+                // Сохраняем результаты пинга обратно по подпискам для persistence
+                val bySubId = tested.groupBy { it.subId }
+                bySubId.forEach { (subId, servers) ->
+                    if (subId.isNotEmpty()) repo.saveServers(subId, servers)
+                }
+                // Серверы без subId (старый кэш) сохраняются as-is
+
                 _servers.postValue(tested)
                 val best = tested.firstOrNull { it.isReachable }
                 _bestServer.postValue(best)
                 repo.lastUpdateTime = System.currentTimeMillis()
                 updateLastUpdateText()
+                val subs = repo.getSubscriptions()
+                _subscriptions.postValue(subs)
+                rebuildServerListItems(subs, tested)
+
                 val reachable = tested.count { it.isReachable }
                 val errText   = if (errors > 0) " ($errors ошибок)" else ""
                 if (best != null)
@@ -241,9 +334,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun connectToBest() {
-        val server = _bestServer.value ?: _servers.value?.firstOrNull { it.isReachable } ?: run {
-            _uiState.value = UiState.Error("Нет доступных серверов."); return
-        }
+        val server = _bestServer.value ?: _servers.value?.firstOrNull { it.isReachable }
+            ?: _servers.value?.firstOrNull() ?: run {
+                _uiState.value = UiState.Error("Нет доступных серверов."); return
+            }
         connectToServer(server)
     }
 
@@ -265,7 +359,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         lastConnectedServer = server
         _vpnState.value = VpnConnState.CONNECTING
         _vpnMessage.value = "⏳ Подключение к ${server.name}..."
-        // Передать настройки Kill Switch через extras
         val intent = DirectVpnService.buildConnectIntent(ctx, server).apply {
             putExtra("kill_switch", killSwitchEnabled)
         }
@@ -319,14 +412,73 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         repo.fetchSubscription(sub).getOrNull()
 
     fun toggleSubscription(sub: Subscription, enabled: Boolean) {
-        repo.updateSubscription(sub.copy(isEnabled = enabled)); _subscriptions.value = repo.getSubscriptions()
+        repo.updateSubscription(sub.copy(isEnabled = enabled))
+        val subs = repo.getSubscriptions()
+        _subscriptions.value = subs
+        rebuildServerListItems(subs)
     }
+
     fun addCustomSubscription(url: String, name: String) {
         repo.updateSubscription(Subscription(
             id = "custom_${System.currentTimeMillis()}", name = name.ifEmpty { "Своя подписка" },
             url = url, type = com.vpnauto.manager.model.SubscriptionType.CUSTOM, isEnabled = true))
-        _subscriptions.value = repo.getSubscriptions()
+        val subs = repo.getSubscriptions()
+        _subscriptions.value = subs
+        rebuildServerListItems(subs)
     }
+
+    /** Удалить подписку (вместе с кэшем серверов). */
+    fun removeSubscription(subId: String) {
+        repo.removeSubscription(subId)
+        expandedGroups.remove(subId)
+        val subs = repo.getSubscriptions()
+        val servers = _servers.value?.filter { it.subId != subId } ?: emptyList()
+        _subscriptions.value = subs
+        _servers.value = servers
+        _bestServer.value = servers.firstOrNull { it.isReachable }
+        rebuildServerListItems(subs, servers)
+    }
+
+    /** Очистить кэш серверов подписки (не удаляя саму подписку). */
+    fun clearSubServers(subId: String) {
+        repo.clearCachedServers(subId)
+        val subs = repo.getSubscriptions()
+        // Сбрасываем serverCount в метаданных подписки
+        subs.find { it.id == subId }?.let { sub ->
+            repo.updateSubscription(sub.copy(serverCount = 0, lastUpdated = 0L))
+        }
+        val updatedSubs = repo.getSubscriptions()
+        val servers = _servers.value?.filter { it.subId != subId } ?: emptyList()
+        _subscriptions.value = updatedSubs
+        _servers.value = servers
+        _bestServer.value = servers.firstOrNull { it.isReachable }
+        rebuildServerListItems(updatedSubs, servers)
+    }
+
+    /** Очистить все кэши серверов (списки обнуляются, подписки остаются). */
+    fun clearAllServers() {
+        repo.clearAllCachedServers()
+        _servers.value = emptyList()
+        _bestServer.value = null
+        // Сбрасываем счётчики серверов
+        val subs = repo.getSubscriptions().map { it.copy(serverCount = 0, lastUpdated = 0L) }
+        subs.forEach { repo.updateSubscription(it) }
+        val updatedSubs = repo.getSubscriptions()
+        _subscriptions.value = updatedSubs
+        rebuildServerListItems(updatedSubs, emptyList())
+    }
+
+    /** Удалить все пользовательские (CUSTOM) подписки. */
+    fun removeAllCustomSubscriptions() {
+        repo.removeAllCustomSubscriptions()
+        val subs = repo.getSubscriptions()
+        val servers = _servers.value?.filter { it.subId.isNotEmpty() && subs.any { s -> s.id == it.subId } } ?: emptyList()
+        _subscriptions.value = subs
+        _servers.value = servers
+        _bestServer.value = servers.firstOrNull { it.isReachable }
+        rebuildServerListItems(subs, servers)
+    }
+
     fun importSubscriptionToV2Ray(sub: Subscription) = V2RayController.importSubscriptionUrl(ctx, sub.url, sub.name)
     fun importAllToV2Ray() {
         repo.getSubscriptions().filter { it.isEnabled }

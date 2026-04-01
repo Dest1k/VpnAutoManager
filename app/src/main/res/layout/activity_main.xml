@@ -32,164 +32,68 @@
             android:orientation="vertical"
             android:padding="12dp">
 
-            <!-- ─── Статус и управление ───────────────────────── -->
-            <androidx.cardview.widget.CardView
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginBottom="8dp"
-                app:cardCornerRadius="12dp"
-                app:cardElevation="2dp"
-                app:cardBackgroundColor="@color/card_bg">
-
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:orientation="vertical"
-                    android:padding="16dp">
-
-                    <TextView
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:text="Управление"
-                        android:textSize="13sp"
-                        android:textColor="@color/text_secondary"
-                        android:textAllCaps="true"
-                        android:letterSpacing="0.08"
-                        android:layout_marginBottom="12dp"/>
-
-                    <TextView
-                        android:id="@+id/tvStatus"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:text="Готов к работе"
-                        android:textSize="14sp"
-                        android:textColor="@color/text_primary"
-                        android:layout_marginBottom="4dp"/>
-
-                    <ProgressBar
-                        android:id="@+id/progressBar"
-                        style="@style/Widget.AppCompat.ProgressBar.Horizontal"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:indeterminate="true"
-                        android:visibility="gone"
-                        android:layout_marginBottom="8dp"/>
-
-                    <LinearLayout
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:orientation="horizontal">
-
-                        <TextView
-                            android:id="@+id/tvLastUpdate"
-                            android:layout_width="0dp"
-                            android:layout_height="wrap_content"
-                            android:layout_weight="1"
-                            android:text="Обновлено: —"
-                            android:textSize="12sp"
-                            android:textColor="@color/text_secondary"
-                            android:gravity="center_vertical"/>
-
-                        <ImageButton
-                            android:id="@+id/btnSettings"
-                            android:layout_width="36dp"
-                            android:layout_height="36dp"
-                            android:src="@drawable/ic_settings"
-                            android:background="?attr/selectableItemBackgroundBorderless"
-                            android:tint="@color/text_secondary"
-                            android:contentDescription="Настройки"/>
-
-                    </LinearLayout>
-
-                    <LinearLayout
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:orientation="horizontal"
-                        android:layout_marginTop="12dp">
-
-                        <com.google.android.material.button.MaterialButton
-                            android:id="@+id/btnUpdateNow"
-                            android:layout_width="0dp"
-                            android:layout_height="wrap_content"
-                            android:layout_weight="1"
-                            android:layout_marginEnd="6dp"
-                            android:text="🔄 Обновить"
-                            app:backgroundTint="@color/primary"/>
-
-                        <com.google.android.material.button.MaterialButton
-                            android:id="@+id/btnCancelUpdate"
-                            style="@style/Widget.Material3.Button.OutlinedButton"
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:layout_marginEnd="6dp"
-                            android:text="✕"
-                            android:visibility="gone"
-                            android:minWidth="0dp"
-                            android:paddingStart="12dp"
-                            android:paddingEnd="12dp"/>
-
-                        <com.google.android.material.button.MaterialButton
-                            android:id="@+id/btnConnectBest"
-                            android:layout_width="0dp"
-                            android:layout_height="wrap_content"
-                            android:layout_weight="1"
-                            android:layout_marginStart="6dp"
-                            android:text="⚡ Подключить"
-                            app:backgroundTint="@color/accent"/>
-
-                        <com.google.android.material.button.MaterialButton
-                            android:id="@+id/btnCancelConnect"
-                            style="@style/Widget.Material3.Button.OutlinedButton"
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:layout_marginStart="6dp"
-                            android:text="✕"
-                            android:visibility="gone"
-                            android:minWidth="0dp"
-                            android:paddingStart="12dp"
-                            android:paddingEnd="12dp"/>
-
-                    </LinearLayout>
-
-                </LinearLayout>
-
-            </androidx.cardview.widget.CardView>
-
-            
-            <!-- ─── VPN Статус ──────────────────────────────────── -->
+            <!-- ═══ VPN Статус + кнопка подключения (v2rayng-стиль) ════ -->
             <androidx.cardview.widget.CardView
                 android:id="@+id/cardVpnStatus"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginBottom="8dp"
-                app:cardCornerRadius="12dp"
-                app:cardElevation="2dp"
+                app:cardCornerRadius="16dp"
+                app:cardElevation="4dp"
                 app:cardBackgroundColor="@color/vpn_disconnected">
+
                 <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:orientation="vertical"
-                    android:padding="16dp">
+                    android:padding="20dp"
+                    android:gravity="center">
+
                     <TextView
                         android:id="@+id/tvVpnStatus"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:text="Отключено"
-                        android:textSize="16sp"
+                        android:textSize="22sp"
                         android:textStyle="bold"
                         android:textColor="@color/text_primary"
-                        android:layout_marginBottom="4dp"/>
+                        android:layout_marginBottom="4dp"
+                        android:gravity="center"/>
+
                     <TextView
                         android:id="@+id/tvVpnServer"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:text=""
-                        android:textSize="12sp"
-                        android:textColor="@color/text_secondary"/>
+                        android:textSize="13sp"
+                        android:textColor="@color/text_secondary"
+                        android:gravity="center"
+                        android:layout_marginBottom="16dp"/>
+
+                    <!-- Большая кнопка подключения (как в v2rayNG) -->
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/btnConnectBest"
+                        android:layout_width="200dp"
+                        android:layout_height="52dp"
+                        android:text="⚡ Подключить"
+                        android:textSize="16sp"
+                        app:backgroundTint="@color/accent"
+                        app:cornerRadius="26dp"/>
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/btnCancelConnect"
+                        style="@style/Widget.Material3.Button.OutlinedButton"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="8dp"
+                        android:text="✕ Отмена"
+                        android:visibility="gone"/>
+
                 </LinearLayout>
+
             </androidx.cardview.widget.CardView>
 
-            <!-- ─── Лучший сервер ─────────────────────────────── -->
+            <!-- ═══ Лучший сервер ════════════════════════════════════ -->
             <androidx.cardview.widget.CardView
                 android:id="@+id/cardBestServer"
                 android:layout_width="match_parent"
@@ -204,17 +108,17 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:orientation="vertical"
-                    android:padding="16dp">
+                    android:padding="14dp">
 
                     <TextView
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:text="🏆 Лучший сервер"
-                        android:textSize="13sp"
+                        android:textSize="11sp"
                         android:textColor="@color/accent_dark"
                         android:textAllCaps="true"
                         android:letterSpacing="0.08"
-                        android:layout_marginBottom="8dp"/>
+                        android:layout_marginBottom="6dp"/>
 
                     <LinearLayout
                         android:layout_width="match_parent"
@@ -241,7 +145,7 @@
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
                                 android:text="—"
-                                android:textSize="12sp"
+                                android:textSize="11sp"
                                 android:textColor="@color/text_secondary"/>
 
                         </LinearLayout>
@@ -277,78 +181,7 @@
 
             </androidx.cardview.widget.CardView>
 
-            
-            <!-- ─── Раздача VPN через хотспот ────────────────── -->
-            <androidx.cardview.widget.CardView
-                android:id="@+id/cardHotspot"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginBottom="8dp"
-                app:cardCornerRadius="12dp"
-                app:cardElevation="2dp"
-                app:cardBackgroundColor="@color/card_bg">
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:orientation="vertical"
-                    android:padding="16dp">
-                    <TextView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="📶 Раздача VPN"
-                        android:textSize="13sp"
-                        android:textColor="@color/text_secondary"
-                        android:textAllCaps="true"
-                        android:letterSpacing="0.08"
-                        android:layout_marginBottom="8dp"/>
-                    <LinearLayout
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:orientation="horizontal"
-                        android:gravity="center_vertical">
-                        <LinearLayout
-                            android:layout_width="0dp"
-                            android:layout_height="wrap_content"
-                            android:layout_weight="1"
-                            android:orientation="vertical">
-                            <TextView
-                                android:id="@+id/tvHotspotStatus"
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:text="Выключена"
-                                android:textSize="14sp"
-                                android:textColor="@color/text_primary"/>
-                            <TextView
-                                android:id="@+id/tvHotspotAddress"
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:text=""
-                                android:textSize="12sp"
-                                android:textColor="@color/text_secondary"/>
-                        </LinearLayout>
-                        <com.google.android.material.button.MaterialButton
-                            android:id="@+id/btnHotspotQr"
-                            style="@style/Widget.Material3.Button.TextButton"
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:text="QR"
-                            android:visibility="gone"/>
-                        <com.google.android.material.switchmaterial.SwitchMaterial
-                            android:id="@+id/switchHotspot"
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"/>
-                    </LinearLayout>
-                    <TextView
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:text="Включите точку доступа в настройках Android, затем переключите раздачу VPN."
-                        android:textSize="11sp"
-                        android:textColor="@color/text_hint"
-                        android:layout_marginTop="6dp"/>
-                </LinearLayout>
-            </androidx.cardview.widget.CardView>
-
-            <!-- ─── Подписки ──────────────────────────────────── -->
+            <!-- ═══ Управление подписками ════════════════════════════ -->
             <androidx.cardview.widget.CardView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
@@ -361,13 +194,15 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:orientation="vertical"
-                    android:padding="16dp">
+                    android:padding="14dp">
 
+                    <!-- Заголовок + кнопки -->
                     <LinearLayout
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:orientation="horizontal"
-                        android:layout_marginBottom="8dp">
+                        android:gravity="center_vertical"
+                        android:layout_marginBottom="6dp">
 
                         <TextView
                             android:layout_width="0dp"
@@ -377,62 +212,172 @@
                             android:textSize="13sp"
                             android:textColor="@color/text_secondary"
                             android:textAllCaps="true"
-                            android:letterSpacing="0.08"
-                            android:gravity="center_vertical"/>
+                            android:letterSpacing="0.08"/>
 
                         <com.google.android.material.button.MaterialButton
-                            android:id="@+id/btnPingAllSubs"
+                            android:id="@+id/btnUpdateNow"
+                            android:layout_width="wrap_content"
+                            android:layout_height="32dp"
+                            android:text="🔄"
+                            android:textSize="14sp"
+                            android:minWidth="0dp"
+                            android:paddingStart="10dp"
+                            android:paddingEnd="10dp"
+                            app:backgroundTint="@color/primary"/>
+
+                        <com.google.android.material.button.MaterialButton
+                            android:id="@+id/btnCancelUpdate"
                             style="@style/Widget.Material3.Button.OutlinedButton"
                             android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:layout_marginEnd="4dp"
-                            android:text="📡 Пинг"
-                            android:textSize="12sp"
+                            android:layout_height="32dp"
+                            android:layout_marginStart="4dp"
+                            android:text="✕"
+                            android:visibility="gone"
+                            android:minWidth="0dp"
                             android:paddingStart="10dp"
                             android:paddingEnd="10dp"/>
 
-                        <com.google.android.material.button.MaterialButton
-                            android:id="@+id/btnSpeedTestAllSubs"
-                            style="@style/Widget.Material3.Button.OutlinedButton"
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:layout_marginEnd="4dp"
-                            android:text="📊 Скорость"
-                            android:textSize="12sp"
-                            android:paddingStart="10dp"
-                            android:paddingEnd="10dp"/>
-
-                        <com.google.android.material.button.MaterialButton
-                            android:id="@+id/btnImportAllToV2Ray"
-                            style="@style/Widget.Material3.Button.OutlinedButton"
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:text="→ v2rayNG"
-                            android:textSize="12sp"
-                            android:paddingStart="10dp"
-                            android:paddingEnd="10dp"/>
+                        <ImageButton
+                            android:id="@+id/btnSettings"
+                            android:layout_width="36dp"
+                            android:layout_height="36dp"
+                            android:layout_marginStart="4dp"
+                            android:src="@drawable/ic_settings"
+                            android:background="?attr/selectableItemBackgroundBorderless"
+                            android:tint="@color/text_secondary"
+                            android:contentDescription="Настройки"/>
 
                     </LinearLayout>
 
+                    <!-- Прогресс + статус обновления -->
+                    <ProgressBar
+                        android:id="@+id/progressBar"
+                        style="@style/Widget.AppCompat.ProgressBar.Horizontal"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:indeterminate="true"
+                        android:visibility="gone"
+                        android:layout_marginBottom="4dp"/>
+
+                    <TextView
+                        android:id="@+id/tvStatus"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="Готов к работе"
+                        android:textSize="12sp"
+                        android:textColor="@color/text_secondary"
+                        android:layout_marginBottom="2dp"/>
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical"
+                        android:layout_marginBottom="8dp">
+
+                        <TextView
+                            android:id="@+id/tvLastUpdate"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:text="Обновлено: —"
+                            android:textSize="11sp"
+                            android:textColor="@color/text_hint"/>
+
+                        <TextView
+                            android:id="@+id/tvServerCount"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text=""
+                            android:textSize="11sp"
+                            android:textColor="@color/text_secondary"
+                            android:layout_marginEnd="8dp"/>
+
+                        <TextView
+                            android:id="@+id/tvReachableCount"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text=""
+                            android:textSize="11sp"
+                            android:textColor="@color/ping_good"/>
+
+                    </LinearLayout>
+
+                    <!-- Список подписок -->
                     <androidx.recyclerview.widget.RecyclerView
                         android:id="@+id/rvSubscriptions"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:nestedScrollingEnabled="false"/>
 
-                    <com.google.android.material.button.MaterialButton
-                        android:id="@+id/btnAddCustomSub"
-                        style="@style/Widget.Material3.Button.TextButton"
-                        android:layout_width="wrap_content"
+                    <!-- Кнопки снизу подписок -->
+                    <LinearLayout
+                        android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:layout_marginTop="4dp"
-                        android:text="+ Добавить свою подписку"/>
+                        android:orientation="horizontal"
+                        android:layout_marginTop="8dp">
+
+                        <com.google.android.material.button.MaterialButton
+                            android:id="@+id/btnAddCustomSub"
+                            style="@style/Widget.Material3.Button.TextButton"
+                            android:layout_width="0dp"
+                            android:layout_weight="1"
+                            android:layout_height="wrap_content"
+                            android:text="+ Добавить"
+                            android:textSize="12sp"/>
+
+                        <com.google.android.material.button.MaterialButton
+                            android:id="@+id/btnPingAllSubs"
+                            style="@style/Widget.Material3.Button.OutlinedButton"
+                            android:layout_width="0dp"
+                            android:layout_weight="1"
+                            android:layout_height="wrap_content"
+                            android:text="📡 Пинг"
+                            android:textSize="12sp"
+                            android:paddingStart="6dp"
+                            android:paddingEnd="6dp"/>
+
+                        <com.google.android.material.button.MaterialButton
+                            android:id="@+id/btnSpeedTestAllSubs"
+                            style="@style/Widget.Material3.Button.OutlinedButton"
+                            android:layout_width="0dp"
+                            android:layout_weight="1"
+                            android:layout_height="wrap_content"
+                            android:text="📊"
+                            android:textSize="12sp"
+                            android:paddingStart="6dp"
+                            android:paddingEnd="6dp"/>
+
+                        <com.google.android.material.button.MaterialButton
+                            android:id="@+id/btnImportAllToV2Ray"
+                            style="@style/Widget.Material3.Button.OutlinedButton"
+                            android:layout_width="0dp"
+                            android:layout_weight="1"
+                            android:layout_height="wrap_content"
+                            android:text="→ v2ray"
+                            android:textSize="12sp"
+                            android:paddingStart="6dp"
+                            android:paddingEnd="6dp"/>
+
+                        <com.google.android.material.button.MaterialButton
+                            android:id="@+id/btnClearAllSubs"
+                            style="@style/Widget.Material3.Button.TextButton"
+                            android:layout_width="0dp"
+                            android:layout_weight="1"
+                            android:layout_height="wrap_content"
+                            android:text="🗑 Очистить"
+                            android:textSize="12sp"
+                            android:textColor="@color/error_color"
+                            android:paddingStart="6dp"
+                            android:paddingEnd="6dp"/>
+
+                    </LinearLayout>
 
                 </LinearLayout>
 
             </androidx.cardview.widget.CardView>
 
-            <!-- ─── Серверы ───────────────────────────────────── -->
+            <!-- ═══ Список серверов (группированный, v2rayng-стиль) ══ -->
             <androidx.cardview.widget.CardView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
@@ -445,47 +390,203 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:orientation="vertical"
-                    android:padding="16dp">
-
-                    <LinearLayout
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:orientation="horizontal"
-                        android:layout_marginBottom="8dp">
-
-                        <TextView
-                            android:id="@+id/tvServerCount"
-                            android:layout_width="0dp"
-                            android:layout_height="wrap_content"
-                            android:layout_weight="1"
-                            android:text="Серверы"
-                            android:textSize="13sp"
-                            android:textColor="@color/text_secondary"
-                            android:textAllCaps="true"
-                            android:letterSpacing="0.08"
-                            android:gravity="center_vertical"/>
-
-                        <TextView
-                            android:id="@+id/tvReachableCount"
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:text="0 доступных"
-                            android:textSize="12sp"
-                            android:textColor="@color/ping_good"/>
-
-                    </LinearLayout>
+                    android:padding="0dp">
 
                     <androidx.recyclerview.widget.RecyclerView
                         android:id="@+id/rvServers"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:nestedScrollingEnabled="false"/>
+                        android:nestedScrollingEnabled="false"
+                        android:paddingTop="4dp"
+                        android:paddingBottom="4dp"/>
 
                 </LinearLayout>
 
             </androidx.cardview.widget.CardView>
 
-            <!-- ─── Открыть v2rayNG ───────────────────────────── -->
+            <!-- ═══ Раздача VPN через хотспот ════════════════════════ -->
+            <androidx.cardview.widget.CardView
+                android:id="@+id/cardHotspot"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="8dp"
+                app:cardCornerRadius="12dp"
+                app:cardElevation="2dp"
+                app:cardBackgroundColor="@color/card_bg">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:padding="14dp">
+
+                    <!-- Заголовок + переключатель -->
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical"
+                        android:layout_marginBottom="6dp">
+
+                        <TextView
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:text="📶 Раздача VPN"
+                            android:textSize="13sp"
+                            android:textColor="@color/text_secondary"
+                            android:textAllCaps="true"
+                            android:letterSpacing="0.08"/>
+
+                        <com.google.android.material.button.MaterialButton
+                            android:id="@+id/btnHotspotQr"
+                            style="@style/Widget.Material3.Button.TextButton"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="QR"
+                            android:visibility="gone"/>
+
+                        <com.google.android.material.switchmaterial.SwitchMaterial
+                            android:id="@+id/switchHotspot"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"/>
+
+                    </LinearLayout>
+
+                    <!-- Статус -->
+                    <TextView
+                        android:id="@+id/tvHotspotStatus"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Выключена"
+                        android:textSize="13sp"
+                        android:textColor="@color/text_primary"
+                        android:layout_marginBottom="6dp"/>
+
+                    <!-- Блок настроек прокси для клиентов (видимый когда активна) -->
+                    <LinearLayout
+                        android:id="@+id/layoutProxySettings"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="vertical"
+                        android:visibility="gone"
+                        android:background="#F5F9FF"
+                        android:padding="10dp">
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="Настройки прокси для клиентов:"
+                            android:textSize="11sp"
+                            android:textColor="@color/text_secondary"
+                            android:textStyle="bold"
+                            android:layout_marginBottom="6dp"/>
+
+                        <!-- Таблица настроек -->
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:orientation="horizontal"
+                            android:layout_marginBottom="4dp">
+                            <TextView
+                                android:layout_width="70dp"
+                                android:layout_height="wrap_content"
+                                android:text="Тип:"
+                                android:textSize="12sp"
+                                android:textColor="@color/text_secondary"/>
+                            <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="SOCKS5"
+                                android:textSize="12sp"
+                                android:textStyle="bold"
+                                android:textColor="@color/primary"/>
+                        </LinearLayout>
+
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:orientation="horizontal"
+                            android:layout_marginBottom="4dp">
+                            <TextView
+                                android:layout_width="70dp"
+                                android:layout_height="wrap_content"
+                                android:text="Адрес:"
+                                android:textSize="12sp"
+                                android:textColor="@color/text_secondary"/>
+                            <TextView
+                                android:id="@+id/tvProxyHost"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="—"
+                                android:textSize="12sp"
+                                android:textStyle="bold"
+                                android:textColor="@color/text_primary"/>
+                        </LinearLayout>
+
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:orientation="horizontal"
+                            android:layout_marginBottom="4dp">
+                            <TextView
+                                android:layout_width="70dp"
+                                android:layout_height="wrap_content"
+                                android:text="Порт:"
+                                android:textSize="12sp"
+                                android:textColor="@color/text_secondary"/>
+                            <TextView
+                                android:id="@+id/tvProxyPort"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="1080"
+                                android:textSize="12sp"
+                                android:textStyle="bold"
+                                android:textColor="@color/text_primary"/>
+                        </LinearLayout>
+
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:orientation="horizontal">
+                            <TextView
+                                android:layout_width="70dp"
+                                android:layout_height="wrap_content"
+                                android:text="Пароль:"
+                                android:textSize="12sp"
+                                android:textColor="@color/text_secondary"/>
+                            <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="не требуется"
+                                android:textSize="12sp"
+                                android:textColor="@color/text_hint"/>
+                        </LinearLayout>
+
+                        <TextView
+                            android:id="@+id/tvHotspotAddress"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:text=""
+                            android:textSize="11sp"
+                            android:textColor="@color/text_hint"
+                            android:layout_marginTop="6dp"/>
+
+                    </LinearLayout>
+
+                    <TextView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="Включите точку доступа в настройках Android, затем переключите раздачу VPN."
+                        android:textSize="11sp"
+                        android:textColor="@color/text_hint"
+                        android:layout_marginTop="6dp"/>
+
+                </LinearLayout>
+
+            </androidx.cardview.widget.CardView>
+
+            <!-- ═══ Открыть v2rayNG ═══════════════════════════════════ -->
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/btnOpenV2Ray"
                 style="@style/Widget.Material3.Button.OutlinedButton"

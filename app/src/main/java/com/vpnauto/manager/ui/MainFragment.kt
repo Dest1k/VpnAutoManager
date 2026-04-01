@@ -30,8 +30,10 @@ class MainFragment : Fragment() {
     private var _binding: ActivityMainBinding? = null
     private val binding get() = _binding!!
     private val viewModel: MainViewModel by activityViewModels()
-    private lateinit var serverAdapter: ServerAdapter
+
+    private lateinit var serverListAdapter: ServerListAdapter
     private lateinit var subscriptionAdapter: SubscriptionAdapter
+
     private var pingAllJob: Job? = null
     private var speedTestAllJob: Job? = null
 
@@ -48,17 +50,22 @@ class MainFragment : Fragment() {
     }
 
     private fun setupRecyclerViews() {
-        serverAdapter = ServerAdapter(
-            onConnect = { server -> viewModel.connectToServer(server) },
-            onPing = { }
+        // Единый адаптер для серверов: заголовки групп + серверы + пропингованные
+        serverListAdapter = ServerListAdapter(
+            onConnect     = { server -> viewModel.connectToServer(server) },
+            onToggleGroup = { subId -> viewModel.toggleGroup(subId) }
         )
         binding.rvServers.apply {
             layoutManager = LinearLayoutManager(requireContext())
-            adapter = serverAdapter
+            adapter = serverListAdapter
         }
+
+        // Адаптер подписок с кнопками удаления и очистки
         subscriptionAdapter = SubscriptionAdapter(
             onToggle    = { sub: Subscription, enabled: Boolean -> viewModel.toggleSubscription(sub, enabled) },
             onImport    = { sub: Subscription -> viewModel.importSubscriptionToV2Ray(sub) },
+            onDelete    = { sub: Subscription -> showDeleteSubDialog(sub) },
+            onClear     = { sub: Subscription -> showClearSubDialog(sub) },
             onPing      = { sub: Subscription, holder: SubscriptionAdapter.ViewHolder -> pingSubscription(sub, holder) },
             onSpeedTest = { sub: Subscription, holder: SubscriptionAdapter.ViewHolder -> speedTestSubscription(sub, holder) }
         )
@@ -113,6 +120,9 @@ class MainFragment : Fragment() {
         binding.btnSettings.setOnClickListener { showSettingsDialog() }
         binding.btnPingAllSubs.setOnClickListener { pingAllSubscriptions() }
         binding.btnSpeedTestAllSubs.setOnClickListener { speedTestAllSubscriptions() }
+
+        // Кнопка очистки всех серверов подписок
+        binding.btnClearAllSubs.setOnClickListener { showClearAllDialog() }
     }
 
     private fun observeViewModel() {
@@ -145,7 +155,6 @@ class MainFragment : Fragment() {
 
         viewModel.isUpdating.observe(viewLifecycleOwner) { updating ->
             binding.btnCancelUpdate.visibility = if (updating) View.VISIBLE else View.GONE
-            binding.btnUpdateNow.text = if (updating) "⏳ Обновление..." else "🔄 Обновить"
         }
 
         viewModel.vpnState.observe(viewLifecycleOwner) { state ->
@@ -191,19 +200,32 @@ class MainFragment : Fragment() {
                 viewModel.toggleHotspotShare(checked)
             }
             binding.tvHotspotStatus.text = if (active) "✅ Раздача активна" else "Выключена"
-            binding.tvHotspotAddress.text = if (active && viewModel.hotspotAddress.value?.isNotEmpty() == true)
-                "SOCKS5: ${viewModel.hotspotAddress.value}" else ""
             binding.btnHotspotQr.visibility = if (active) View.VISIBLE else View.GONE
+            binding.layoutProxySettings.visibility = if (active) View.VISIBLE else View.GONE
         }
 
         viewModel.hotspotAddress.observe(viewLifecycleOwner) { address ->
-            binding.tvHotspotAddress.text = if (address.isNotEmpty()) "SOCKS5: $address" else ""
+            if (address.isNotEmpty()) {
+                val host = address.substringBefore(':')
+                val port = address.substringAfter(':')
+                binding.tvProxyHost.text = host
+                binding.tvProxyPort.text = port
+                binding.tvHotspotAddress.text = "SOCKS5: $address"
+            } else {
+                binding.tvHotspotAddress.text = ""
+            }
+        }
+
+        // Единый список серверов (сгруппированный)
+        viewModel.serverListItems.observe(viewLifecycleOwner) { items ->
+            serverListAdapter.submitItems(items)
         }
 
         viewModel.servers.observe(viewLifecycleOwner) { servers ->
-            serverAdapter.submitList(servers.take(100))
-            binding.tvServerCount.text = "${servers.size} серверов"
-            binding.tvReachableCount.text = "${servers.count { it.isReachable }} доступных"
+            val total     = servers.size
+            val reachable = servers.count { it.isReachable }
+            binding.tvServerCount.text = if (total > 0) "$total серверов" else ""
+            binding.tvReachableCount.text = if (reachable > 0) "$reachable ✅" else ""
         }
 
         viewModel.bestServer.observe(viewLifecycleOwner) { server ->
@@ -221,6 +243,8 @@ class MainFragment : Fragment() {
         viewModel.subscriptions.observe(viewLifecycleOwner) { subscriptionAdapter.submitList(it) }
         viewModel.lastUpdateText.observe(viewLifecycleOwner) { binding.tvLastUpdate.text = "Обновлено: $it" }
     }
+
+    // ─── Диалоги ─────────────────────────────────────────────────────────────
 
     private fun showHotspotQrDialog(address: String) {
         val host = address.substringBefore(':')
@@ -259,6 +283,44 @@ class MainFragment : Fragment() {
             .setNegativeButton("Отмена", null).show()
     }
 
+    private fun showDeleteSubDialog(sub: Subscription) {
+        MaterialAlertDialogBuilder(requireContext())
+            .setTitle("Удалить подписку")
+            .setMessage("Удалить «${sub.name}» вместе с кэшем серверов?")
+            .setPositiveButton("Удалить") { _, _ ->
+                viewModel.removeSubscription(sub.id)
+                showSnackbar("Подписка удалена")
+            }
+            .setNegativeButton("Отмена", null).show()
+    }
+
+    private fun showClearSubDialog(sub: Subscription) {
+        MaterialAlertDialogBuilder(requireContext())
+            .setTitle("Очистить список серверов")
+            .setMessage("Удалить кэш серверов подписки «${sub.name}»?\nПодписка останется в списке.")
+            .setPositiveButton("Очистить") { _, _ ->
+                viewModel.clearSubServers(sub.id)
+                subscriptionAdapter.setPingResult(sub.id, "")
+                showSnackbar("Список серверов очищен")
+            }
+            .setNegativeButton("Отмена", null).show()
+    }
+
+    private fun showClearAllDialog() {
+        MaterialAlertDialogBuilder(requireContext())
+            .setTitle("Очистить все списки")
+            .setMessage("Удалить кэш серверов всех подписок? Сами подписки останутся.\n\nДля удаления только своих подписок используйте кнопку ✕ в каждой.")
+            .setPositiveButton("Очистить всё") { _, _ ->
+                viewModel.clearAllServers()
+                showSnackbar("Все списки серверов очищены")
+            }
+            .setNeutralButton("Удалить свои") { _, _ ->
+                viewModel.removeAllCustomSubscriptions()
+                showSnackbar("Пользовательские подписки удалены")
+            }
+            .setNegativeButton("Отмена", null).show()
+    }
+
     private fun showSettingsDialog() {
         val view = layoutInflater.inflate(R.layout.dialog_settings, null)
         val spinnerInterval   = view.findViewById<android.widget.Spinner>(R.id.spinnerInterval)
@@ -282,7 +344,7 @@ class MainFragment : Fragment() {
             .setNegativeButton("Отмена", null).show()
     }
 
-    // ─── Пинг-тест подписок ──────────────────────────────────────
+    // ─── Пинг-тест подписок ──────────────────────────────────────────────────
 
     private fun pingSubscription(sub: Subscription, holder: SubscriptionAdapter.ViewHolder) {
         viewLifecycleOwner.lifecycleScope.launch {
@@ -295,17 +357,14 @@ class MainFragment : Fragment() {
                     holder.tvPingResult.text = "⏳ скачиваем серверы..."
                     servers = viewModel.fetchServersForSub(sub) ?: emptyList()
                 }
-
                 if (servers.isEmpty()) {
                     holder.tvPingResult.text = "⚠️ нет серверов"
                     return@launch
                 }
-
                 holder.tvPingResult.text = "⏳ пинг 0/${servers.size}..."
                 val tested = PingTester.testServers(servers) { done, total ->
                     if (isActive) holder.tvPingResult.text = "⏳ пинг $done/$total..."
                 }
-
                 val reachable = tested.count { it.isReachable }
                 val best = tested.firstOrNull { it.isReachable }
                 val resultText = if (best != null)
@@ -314,8 +373,10 @@ class MainFragment : Fragment() {
                     "❌ нет доступных (${tested.size} проверено)"
                 holder.tvPingResult.text = resultText
                 subscriptionAdapter.setPingResult(sub.id, resultText)
+                // Обновляем общий список серверов с результатами пинга
+                viewModel.loadData()
             } catch (e: kotlinx.coroutines.CancellationException) {
-                throw e  // пробрасываем отмену
+                throw e
             } catch (e: Exception) {
                 val errText = "❌ ошибка: ${e.message?.take(40)}"
                 holder.tvPingResult.text = errText
@@ -328,8 +389,7 @@ class MainFragment : Fragment() {
 
     private fun pingAllSubscriptions() {
         if (pingAllJob?.isActive == true) {
-            pingAllJob?.cancel()
-            pingAllJob = null
+            pingAllJob?.cancel(); pingAllJob = null
             binding.btnPingAllSubs.text = "📡 Пинг"
             return
         }
@@ -348,8 +408,7 @@ class MainFragment : Fragment() {
                         servers = viewModel.fetchServersForSub(sub) ?: emptyList()
                     }
                     if (servers.isEmpty()) {
-                        subscriptionAdapter.setPingResult(sub.id, "⚠️ нет серверов")
-                        continue
+                        subscriptionAdapter.setPingResult(sub.id, "⚠️ нет серверов"); continue
                     }
                     subscriptionAdapter.setPingResult(sub.id, "⏳ пинг 0/${servers.size}...")
                     val tested = PingTester.testServers(servers) { done, total ->
@@ -363,6 +422,7 @@ class MainFragment : Fragment() {
                         "❌ нет доступных (${tested.size} проверено)"
                     subscriptionAdapter.setPingResult(sub.id, resultText)
                 }
+                viewModel.loadData()
             } finally {
                 binding.btnPingAllSubs.text = "📡 Пинг"
                 pingAllJob = null
@@ -370,7 +430,7 @@ class MainFragment : Fragment() {
         }
     }
 
-    // ─── Тест скорости одной подписки ───────────────────────────
+    // ─── Тест скорости ───────────────────────────────────────────────────────
 
     private fun speedTestSubscription(sub: Subscription, holder: SubscriptionAdapter.ViewHolder) {
         viewLifecycleOwner.lifecycleScope.launch {
@@ -399,15 +459,14 @@ class MainFragment : Fragment() {
 
     private fun speedTestAllSubscriptions() {
         if (speedTestAllJob?.isActive == true) {
-            speedTestAllJob?.cancel()
-            speedTestAllJob = null
-            binding.btnSpeedTestAllSubs.text = "📊 Скорость"
+            speedTestAllJob?.cancel(); speedTestAllJob = null
+            binding.btnSpeedTestAllSubs.text = "📊"
             return
         }
         val subs = viewModel.subscriptions.value?.filter { it.isEnabled } ?: return
         if (subs.isEmpty()) { showSnackbar("Нет включённых подписок"); return }
 
-        binding.btnSpeedTestAllSubs.text = "✕ Стоп"
+        binding.btnSpeedTestAllSubs.text = "✕"
         speedTestAllJob = viewLifecycleOwner.lifecycleScope.launch {
             try {
                 for (sub in subs) {
@@ -420,26 +479,16 @@ class MainFragment : Fragment() {
                 }
                 showSnackbar("Тест скорости завершён")
             } finally {
-                binding.btnSpeedTestAllSubs.text = "📊 Скорость"
+                binding.btnSpeedTestAllSubs.text = "📊"
                 speedTestAllJob = null
             }
         }
     }
 
-    /**
-     * Общая логика теста скорости для одной подписки:
-     * 1. Загружает серверы (из кэша или по сети)
-     * 2. Пингует все серверы
-     * 3. Подключается к лучшему серверу
-     * 4. Запускает SpeedTest через SOCKS5 xray
-     * 5. Отключается (если до этого не было подключения)
-     * Возвращает строку с результатом для отображения.
-     */
     private suspend fun runSpeedTestForSub(
         sub: Subscription,
         onStatus: (String) -> Unit
     ): String {
-        // 1. Серверы
         onStatus("⏳ скачиваем серверы...")
         var servers = viewModel.getCachedServers(sub.id)
         if (servers.isEmpty()) {
@@ -447,25 +496,19 @@ class MainFragment : Fragment() {
         }
         if (servers.isEmpty()) return "⚠️ нет серверов"
 
-        // 2. Пинг
         onStatus("⏳ пинг 0/${servers.size}...")
         val tested = PingTester.testServers(servers) { done, total ->
             onStatus("⏳ пинг $done/$total...")
         }
         val best = tested.firstOrNull { it.isReachable } ?: return "❌ нет доступных серверов"
 
-        // 3. Подключение
         val wasRunning = DirectVpnService.isRunning
         onStatus("⏳ подключение к ${best.name}...")
         viewModel.connectToServer(best)
-
-        // Небольшая пауза — даём сервису начать подключение
         delay(400)
         if (!DirectVpnService.isConnecting && !DirectVpnService.isRunning) {
             return "⚠️ требуется разрешение VPN — предоставьте его и повторите"
         }
-
-        // 4. Ждём подключения (до 35с)
         val connected = withTimeoutOrNull(35_000L) {
             while (!DirectVpnService.isRunning) {
                 if (!DirectVpnService.isConnecting) return@withTimeoutOrNull false
@@ -473,26 +516,19 @@ class MainFragment : Fragment() {
             }
             true
         } ?: false
+        if (!connected) return "❌ не удалось подключиться к ${best.name}"
 
-        if (!connected) {
-            return "❌ не удалось подключиться к ${best.name}"
-        }
-
-        // 5. Тест скорости
         val speedResult = SpeedTest.run { msg -> onStatus("⏳ $msg") }
-
         val pingText = "${best.pingMs}мс"
         val result = if (speedResult != null && speedResult.downloadMbps > 0)
             "✅ 📡 $pingText · ⬇ ${String.format("%.1f", speedResult.downloadMbps)} · ⬆ ${String.format("%.1f", speedResult.uploadMbps)} Мбит/с"
         else
             "✅ 📡 $pingText (скорость н/д)"
 
-        // 6. Отключаемся, только если подключались специально для теста
         if (!wasRunning) {
             viewModel.disconnect()
             delay(1500)
         }
-
         return result
     }
 

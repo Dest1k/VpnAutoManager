@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Заголовок группы подписки в списке серверов (аналог групп в v2rayNG) -->
+<LinearLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="horizontal"
+    android:gravity="center_vertical"
+    android:paddingStart="12dp"
+    android:paddingEnd="12dp"
+    android:paddingTop="10dp"
+    android:paddingBottom="10dp"
+    android:background="?attr/selectableItemBackground">
+
+    <!-- Полоска-индикатор слева -->
+    <View
+        android:layout_width="3dp"
+        android:layout_height="20dp"
+        android:background="@color/primary"
+        android:layout_marginEnd="10dp"/>
+
+    <LinearLayout
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1"
+        android:orientation="vertical">
+
+        <TextView
+            android:id="@+id/tvGroupName"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Подписка"
+            android:textSize="14sp"
+            android:textStyle="bold"
+            android:textColor="@color/text_primary"
+            android:maxLines="1"
+            android:ellipsize="end"/>
+
+        <TextView
+            android:id="@+id/tvGroupCount"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="не загружена"
+            android:textSize="11sp"
+            android:textColor="@color/text_secondary"/>
+
+    </LinearLayout>
+
+    <TextView
+        android:id="@+id/tvGroupArrow"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="▼"
+        android:textSize="14sp"
+        android:textColor="@color/text_secondary"
+        android:paddingStart="8dp"/>
+
+</LinearLayout>
