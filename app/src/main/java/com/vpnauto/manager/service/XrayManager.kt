@@ -129,7 +129,15 @@ class XrayManager(private val context: Context) {
         }
         return try {
             configFile.writeText(config)
-            ConnectionLog.i("Конфиг (начало): ${config.take(300)}")
+            // Полный конфиг в файловый лог (FileLogger) — не обрезаем.
+            // В ConnectionLog (экран) показываем только outbound-секцию для диагностики Reality.
+            FileLogger.log("=== XRAY CONFIG ===\n$config\n=== END CONFIG ===")
+            val outboundStart = config.indexOf("\"outbounds\"")
+            if (outboundStart >= 0) {
+                ConnectionLog.i("Outbound: ${config.substring(outboundStart).take(500)}")
+            } else {
+                ConnectionLog.i("Config size: ${config.length} bytes")
+            }
             ConnectionLog.i("Запускаем: ${nativeXray.absolutePath}")
             xrayProcess = ProcessBuilder(
                 nativeXray.absolutePath, "run", "-c", configFile.absolutePath

@@ -173,7 +173,7 @@ class DirectVpnService : VpnService() {
             FileLogger.logThrowable("XrayConfigBuilder", e)
             throw Exception("Ошибка конфига: ${e.message}")
         }
-        FileLogger.log("xray config (first 400):\n${config.take(400)}")
+        FileLogger.log("xray config size: ${config.length} bytes, port $socksPort")
         ConnectionLog.i("Конфиг: ${config.length} байт, порт $socksPort")
 
         val xrayStarted = withContext(Dispatchers.IO) { xrayManager.start(config) }
@@ -209,64 +209,73 @@ class DirectVpnService : VpnService() {
         FileLogger.log("=== VPN CONNECTED: ${server.name} ===")
         ConnectionLog.ok("═══ VPN подключён: ${server.name} ═══")
 
-        // Проверяем что трафик реально идёт через прокси (сервер не просто принимает
-        // подключение, но и возвращает данные). Делаем это асинхронно — не блокируем старт.
-        // Ждём дольше (10 с) — VLESS/Reality поверх TLS требует времени на установку туннеля.
-        // 3 попытки с паузой 5 с между ними перед тем как признать сервер недоступным.
+        // Асинхронная проверка связи через туннель.
+        // Запускается через 12 с после подключения — достаточно для Reality/VLESS-рукопожатия.
         //
-        // ВАЖНО: сохраняем Job и проверяем, что порт не сменился (новое подключение не
-        // должно быть убито проверкой от предыдущей сессии).
-        val myPort = socksPort  // фиксируем порт этой сессии до старта корутины
+        // Стратегия: сначала лёгкий HTTP (без TLS-в-TLS), потом HTTPS.
+        // Если хотя бы один URL отвечает — туннель рабочий.
+        //
+        // ВАЖНО: результат проверки ТОЛЬКО информирует пользователя — VPN НЕ отключается.
+        // Причина: check-URL (gstatic.com) может быть недоступен с конкретного сервера,
+        // тогда как все остальные сайты через него работают.
+        // Реальный health-мониторинг — задача Watchdog (каждые 30 с, 3 фейла → reconnect).
+        //
+        // ВАЖНО 2: фиксируем myPort до старта корутины и проверяем его актуальность —
+        // защита от race condition (зомби-проверка убивает новое подключение).
+        val myPort = socksPort
         proxyCheckJob?.cancel()
         proxyCheckJob = scope.launch(Dispatchers.IO) {
-            delay(10_000L) // даём tun2socks, xray и TLS-хэндшейк время стабилизироваться
-            // Если за эти 10 с стартовало новое подключение — наш порт уже не актуален.
+            delay(12_000L)
             if (!isRunning || DirectVpnService.socksPort != myPort) {
-                FileLogger.log("PROXY CHECK: skipped — port changed ($myPort → ${DirectVpnService.socksPort}) or VPN stopped")
+                FileLogger.log("PROXY CHECK: skipped (port changed or VPN stopped)")
                 return@launch
             }
 
-            var proxyOk = false
-            repeat(3) { attempt ->
-                if (proxyOk || !isRunning) return@repeat
-                // Повторно проверяем, что порт не сменился между попытками
-                if (DirectVpnService.socksPort != myPort) {
-                    FileLogger.log("PROXY CHECK: abandoned — port changed between attempts")
-                    proxyOk = true  // не трогаем новое подключение
-                    return@repeat
-                }
+            // Несколько URL-ов на разных провайдерах: HTTP и HTTPS
+            val checkUrls = listOf(
+                "http://cp.cloudflare.com/"                               to 200,
+                "http://connectivitycheck.gstatic.com/generate_204"       to 204,
+                "https://connectivitycheck.gstatic.com/generate_204"      to 204,
+                "http://www.apple.com/library/test/success.html"          to 200
+            )
+
+            val socksProxy = java.net.Proxy(
+                java.net.Proxy.Type.SOCKS,
+                java.net.InetSocketAddress("127.0.0.1", myPort)
+            )
+
+            var passed = false
+            var lastErr = ""
+            for ((urlStr, expectedCode) in checkUrls) {
+                if (!isRunning || DirectVpnService.socksPort != myPort) return@launch
                 try {
-                    val socksProxy = java.net.Proxy(
-                        java.net.Proxy.Type.SOCKS,
-                        java.net.InetSocketAddress("127.0.0.1", myPort)
-                    )
-                    val url = java.net.URL("https://connectivitycheck.gstatic.com/generate_204")
-                    val conn = url.openConnection(socksProxy) as java.net.HttpURLConnection
-                    conn.connectTimeout = 8000
-                    conn.readTimeout    = 8000
+                    val conn = java.net.URL(urlStr).openConnection(socksProxy)
+                            as java.net.HttpURLConnection
+                    conn.connectTimeout = 7000
+                    conn.readTimeout    = 7000
                     conn.requestMethod  = "HEAD"
+                    conn.instanceFollowRedirects = false
                     val code = conn.responseCode
                     conn.disconnect()
-                    if (code == 204) {
-                        proxyOk = true
-                        FileLogger.log("PROXY CHECK: OK (HTTP 204, attempt=${attempt+1})")
-                        ConnectionLog.ok("📶 Связь через прокси подтверждена")
-                    } else {
-                        FileLogger.log("PROXY CHECK: HTTP $code (attempt=${attempt+1})")
-                        ConnectionLog.w("⚠️ Прокси вернул HTTP $code (попытка ${attempt+1}/3)")
+                    FileLogger.log("PROXY CHECK [$urlStr]: HTTP $code (expected $expectedCode)")
+                    if (code == expectedCode || code in 200..299) {
+                        passed = true
+                        ConnectionLog.ok("📶 Туннель работает (HTTP $code via $urlStr)")
+                        break
                     }
                 } catch (e: Exception) {
-                    FileLogger.log("PROXY CHECK FAILED attempt=${attempt+1}: ${e.message}")
-                    ConnectionLog.w("⚠️ Проверка прокси не прошла (попытка ${attempt+1}/3): ${e.message?.take(60)}")
+                    lastErr = e.message?.take(80) ?: "unknown"
+                    FileLogger.log("PROXY CHECK [$urlStr] failed: $lastErr")
                 }
-                if (!proxyOk && attempt < 2 && isRunning) delay(5_000L)
             }
 
-            if (!proxyOk && isRunning) {
-                FileLogger.log("PROXY CHECK: all 3 attempts failed — switching server")
-                ConnectionLog.e("⚠️ Сервер ${server.host} недоступен после 3 попыток — переключаемся...")
-                serverFailed = true
-                withContext(Dispatchers.Main) { stopVpn() }
+            if (!passed) {
+                // Только предупреждаем — НЕ отключаем VPN
+                FileLogger.log("PROXY CHECK: all URLs failed (last: $lastErr) — VPN stays connected, Watchdog monitors")
+                ConnectionLog.w("⚠️ Проверка связи не прошла (${server.host}) — VPN активен, мониторинг продолжается")
+                withContext(Dispatchers.Main) {
+                    VpnStatusBus.notify(true, "⚠️ Связь не подтверждена: ${server.name}")
+                }
             }
         }
     }

@@ -63,9 +63,12 @@ object XrayConfigBuilder {
         })
 
         // Routing: Telegram DC → proxy (приоритет), loopback → direct
-        // Приватные IP не достигают xray (они не в TUN маршрутах)
+        // Приватные IP не достигают xray (они не в TUN маршрутах).
+        // domainStrategy=AsIs: НЕ резолвим домены для выбора правила — используем
+        // только имя домена. Это важно: IPIfNonMatch делает лишний DNS перед каждым
+        // подключением (задержка 100-500ms) и может сломать CDN/балансировку.
         root.put("routing", JSONObject().apply {
-            put("domainStrategy", "IPIfNonMatch")
+            put("domainStrategy", "AsIs")
             put("rules", JSONArray().apply {
 
                 // 1. Telegram DC IP-диапазоны — принудительно через proxy
